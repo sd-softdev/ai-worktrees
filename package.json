@@ -1,6 +1,6 @@
 {
   "name": "agent-workspace",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Ein terminalzentrierter Workspace für parallele Entwicklung mit Git Worktrees.",
   "main": "out/main/index.js",
   "author": {
@@ -27,6 +27,7 @@
     "test:smoke": "npm run build && node scripts/smoke.mjs",
     "test:packaged": "node scripts/smoke.mjs --packaged",
     "test:ssh": "node scripts/ssh-smoke.mjs --packaged",
+    "test:install": "node scripts/install-test.mjs",
     "postinstall": "electron-builder install-app-deps",
     "pack": "npm run build && electron-builder --dir --publish never",
     "dist:mac": "npm run build && electron-builder --mac dmg --publish never",

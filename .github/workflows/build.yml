@@ -52,7 +52,8 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends xvfb libgtk-3-0t64 libnss3 libasound2t64 libgbm1 libxss1 libfuse2t64
+          sudo apt-get install -y --no-install-recommends xvfb libgtk-3-0t64 libnss3 libasound2t64 libgbm1 libxss1 libfuse2t64 openssh-server
+          sudo mkdir -p /run/sshd
 
       - name: Install dependencies and rebuild native PTY
         run: npm ci
@@ -79,6 +80,23 @@ jobs:
         env:
           AGENT_WORKSPACE_SMOKE_NO_SANDBOX: '1'
         run: xvfb-run --auto-servernum --server-args="-screen 0 1600x1000x24" npm run test:packaged
+
+      - name: Test SSH authentication and remote workspaces
+        if: runner.os == 'Linux'
+        env:
+          AGENT_WORKSPACE_SMOKE_NO_SANDBOX: '1'
+          AGENT_WORKSPACE_TEST_SSHD_SUDO: '1'
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1600x1000x24" npm run test:ssh
+
+      - name: Test turnkey installer and installed application
+        if: runner.os != 'Linux'
+        run: npm run test:install
+
+      - name: Test Linux installer and installed application
+        if: runner.os == 'Linux'
+        env:
+          AGENT_WORKSPACE_SMOKE_NO_SANDBOX: '1'
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1600x1000x24" npm run test:install
 
       - name: Upload installers
         uses: actions/upload-artifact@v7
@@ -110,11 +128,17 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:
           pattern: installers-*
           merge-multiple: true
           path: release
+      - name: Include installers and calculate checksums
+        run: |
+          cp install.sh install.ps1 release/
+          cd release
+          sha256sum *.dmg *.exe *.AppImage *.deb install.sh install.ps1 > SHA256SUMS
       - name: Publish verified installers
         env:
           GH_TOKEN: ${{ github.token }}
