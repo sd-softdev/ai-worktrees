@@ -1,0 +1,43 @@
+import { contextBridge, ipcRenderer } from 'electron'
+import type { DesktopAPI, SequencedTerminalEvent } from '../shared/types'
+
+const api: DesktopAPI = {
+  platform: process.platform,
+  bootstrap: () => ipcRenderer.invoke('workspace:bootstrap'),
+  openWorkspace: () => ipcRenderer.invoke('workspace:open'),
+  refreshWorkspace: () => ipcRenderer.invoke('workspace:refresh'),
+  createWorktree: (input) => ipcRenderer.invoke('worktree:create', input),
+  removeWorktree: (path) => ipcRenderer.invoke('worktree:remove', path),
+  savePreferences: (commonDir, preferences) =>
+    ipcRenderer.invoke('preferences:save', commonDir, preferences),
+  getChanges: (path) => ipcRenderer.invoke('git:changes', path),
+  getHistory: (path) => ipcRenderer.invoke('git:history', path),
+  getDiff: (path, request) => ipcRenderer.invoke('git:diff', path, request),
+  listFiles: (worktree, relativePath) => ipcRenderer.invoke('files:list', worktree, relativePath),
+  readFile: (worktree, relativePath) => ipcRenderer.invoke('files:read', worktree, relativePath),
+  openTerminal: (id, worktree, cols, rows) =>
+    ipcRenderer.invoke('terminal:open', id, worktree, cols, rows),
+  writeTerminal: (id, data) => ipcRenderer.send('terminal:write', id, data),
+  resizeTerminal: (id, cols, rows) => ipcRenderer.send('terminal:resize', id, cols, rows),
+  acknowledgeTerminal: (id, sequence) => ipcRenderer.send('terminal:acknowledge', id, sequence),
+  closeTerminal: (id) => ipcRenderer.invoke('terminal:close', id),
+  onTerminalEvent: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: SequencedTerminalEvent) =>
+      listener(data)
+    ipcRenderer.on('terminal:event', handler)
+    return () => ipcRenderer.removeListener('terminal:event', handler)
+  },
+  onWorkspaceChanged: (listener) => {
+    const handler = () => listener()
+    ipcRenderer.on('workspace:changed', handler)
+    return () => ipcRenderer.removeListener('workspace:changed', handler)
+  },
+  onOpenRequested: (listener) => {
+    const handler = () => listener()
+    ipcRenderer.on('workspace:open-requested', handler)
+    return () => ipcRenderer.removeListener('workspace:open-requested', handler)
+  },
+  openExternal: (url) => ipcRenderer.invoke('external:open', url),
+}
+
+contextBridge.exposeInMainWorld('desktop', api)

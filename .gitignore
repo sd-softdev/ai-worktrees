@@ -1,0 +1,8 @@
+node_modules/
+out/
+dist/
+artifacts/
+coverage/
+.worktrees/
+.DS_Store
+*.log

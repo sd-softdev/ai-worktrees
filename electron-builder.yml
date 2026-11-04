@@ -1,0 +1,22 @@
+appId: dev.agentworkspace.desktop
+productName: Agent Workspace
+directories:
+  output: dist
+files:
+  - out/**/*
+  - package.json
+asarUnpack:
+  - node_modules/node-pty/**/*
+icon: build/icon.png
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - dmg
+  identity: null
+win:
+  target:
+    - nsis
+linux:
+  category: Development
+  target:
+    - AppImage
