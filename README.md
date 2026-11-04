@@ -146,7 +146,7 @@ npm run test:install
 | `npm run dist:win`   | Windows x64                 | `.exe` (NSIS-Installer) |
 | `npm run dist:linux` | Linux x64                   | `.AppImage`, `.deb`     |
 
-Beispiel: `dist/agent-workspace-0.2.0-linux-x64.AppImage`. Unter Linux kann für AppImages zusätzlich FUSE 2 erforderlich sein (`libfuse2t64` auf Ubuntu 24.04). Das AppImage vor dem Start ausführbar machen.
+Beispiele: `dist/agent-workspace-0.2.0-linux-x86_64.AppImage` und `dist/agent-workspace-0.2.0-linux-amd64.deb`. Beide Linux-Pakete sind für x64. Für AppImages kann zusätzlich FUSE 2 erforderlich sein (`libfuse2t64` auf Ubuntu 24.04). Das AppImage vor dem Start ausführbar machen.
 
 Für einen abweichenden App-Pfad kann weiterhin `AGENT_WORKSPACE_EXECUTABLE` gesetzt werden. Headless-Linux-Tests laufen mit Xvfb:
 

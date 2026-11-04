@@ -14,7 +14,8 @@ if (!mac && !process.env.CI)
   throw new Error('Windows/Linux installer integration tests require an isolated CI runner.')
 const platform = mac ? 'mac' : windows ? 'win' : 'linux'
 const extension = mac ? 'dmg' : windows ? 'exe' : 'deb'
-const name = `agent-workspace-${version}-${platform}-${process.arch}.${extension}`
+const architecture = process.platform === 'linux' ? 'amd64' : process.arch
+const name = `agent-workspace-${version}-${platform}-${architecture}.${extension}`
 const asset = path.join(project, 'dist', name)
 const hash = createHash('sha256')
   .update(await readFile(asset))
@@ -88,7 +89,7 @@ try {
   })
   assert.equal(smoke.status, 0, 'Installed desktop application smoke test failed')
   if (process.platform === 'linux') {
-    const portableName = `agent-workspace-${version}-linux-x64.AppImage`
+    const portableName = `agent-workspace-${version}-linux-x86_64.AppImage`
     const portableAsset = path.join(project, 'dist', portableName)
     const portableHash = createHash('sha256')
       .update(await readFile(portableAsset))

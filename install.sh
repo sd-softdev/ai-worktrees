@@ -66,7 +66,11 @@ if [[ "$VERSION" == latest && "$DRY_RUN" == false ]]; then
   VERSION="$(curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' https://api.github.com/repos/sd-softdev/ai-worktrees/releases/latest | sed -nE 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' | head -n 1)"
 fi
 [[ "$VERSION" == latest || "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]] || fail 'Ungültige Release-Version.'
-NAME="agent-workspace-${VERSION#v}-${PLATFORM}-${ARCH}.${EXT}"
+PACKAGE_ARCH="$ARCH"
+if [[ "$PLATFORM" == linux ]]; then
+  if [[ "$EXT" == deb ]]; then PACKAGE_ARCH=amd64; else PACKAGE_ARCH=x86_64; fi
+fi
+NAME="agent-workspace-${VERSION#v}-${PLATFORM}-${PACKAGE_ARCH}.${EXT}"
 if [[ "$DRY_RUN" == true ]]; then
   printf 'Plattform: %s %s\nRelease: %s\nPaket: %s\n' "$PLATFORM" "$ARCH" "$VERSION" "$NAME"
   exit 0

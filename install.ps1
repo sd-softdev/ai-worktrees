@@ -54,7 +54,17 @@ try {
     $Pattern = '^([a-fA-F0-9]{64})\s+\*?' + [Regex]::Escape($Name) + '$'
     $Hashes = @(Get-Content -LiteralPath $ChecksumPath | ForEach-Object { if ($_ -match $Pattern) { $Matches[1] } })
     if ($Hashes.Count -ne 1) { throw 'Kein eindeutiger SHA-256-Eintrag für das Paket gefunden.' }
-    $Actual = (Get-FileHash -LiteralPath $InstallerPath -Algorithm SHA256).Hash
+    # Use .NET directly so hashing also works when a PowerShell 7 parent passes
+    # its module search path to Windows PowerShell 5.1.
+    $Algorithm = [Security.Cryptography.SHA256]::Create()
+    $Stream = [IO.File]::OpenRead($InstallerPath)
+    try {
+        $Actual = [BitConverter]::ToString($Algorithm.ComputeHash($Stream)).Replace('-', '')
+    }
+    finally {
+        $Stream.Dispose()
+        $Algorithm.Dispose()
+    }
     if ($Actual -ne $Hashes[0]) { throw 'SHA-256-Prüfung fehlgeschlagen. Das Paket wird nicht installiert.' }
 
     # NSIS requires /D to be the last argument and does not accept quotes around its value.
