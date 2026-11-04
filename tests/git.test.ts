@@ -9,6 +9,7 @@ import {
   git,
   history,
   inspectWorkspace,
+  parseStatus,
   removeWorktree,
 } from '../src/main/git'
 
@@ -35,6 +36,7 @@ beforeEach(async () => {
   repo = path.join(directory, 'repository with spaces')
   await mkdir(repo)
   await git(repo, ['init', '-b', 'main'])
+  await git(repo, ['config', 'core.autocrlf', 'false'])
   await writeFile(path.join(repo, 'README.md'), '# Workspace\n')
   await commit(repo, 'Initial commit')
 })
@@ -76,7 +78,7 @@ describe('Git worktree integration', () => {
 
   it('preserves unusual paths and staged rename records', async () => {
     const oldName = 'original with spaces.txt'
-    const newName = 'new\nüñicode.txt'
+    const newName = process.platform === 'win32' ? 'new üñicode.txt' : 'new\nüñicode.txt'
     await writeFile(path.join(repo, oldName), 'unchanged file contents\n')
     await commit(repo, 'Add file')
     await rename(path.join(repo, oldName), path.join(repo, newName))
@@ -90,6 +92,13 @@ describe('Git worktree integration', () => {
       working: ' ',
     })
     expect(status).toContainEqual({ path: '-option.txt', index: '?', working: '?' })
+  })
+
+  it('parses newline-containing rename records independently of host filesystem rules', () => {
+    expect(parseStatus('R  new\nname.txt\0old name.txt\0?? next.txt\0')).toEqual([
+      { path: 'new\nname.txt', originalPath: 'old name.txt', index: 'R', working: ' ' },
+      { path: 'next.txt', index: '?', working: '?' },
+    ])
   })
 
   it('compares against merge-base without including later target-branch commits', async () => {

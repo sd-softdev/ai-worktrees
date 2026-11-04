@@ -1,4 +1,4 @@
-import { _electron as electron, expect } from '@playwright/test'
+import { _electron as electron, expect as baseExpect } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
@@ -6,6 +6,38 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const project = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const expect = baseExpect.configure({ timeout: 15_000 })
+const windows = process.platform === 'win32'
+const probePath = path.join(project, 'scripts/fixtures/terminal-probe.mjs')
+
+function quote(value) {
+  return windows ? `"${value}"` : `'${value.replaceAll("'", "'\\''")}'`
+}
+
+function probe(action, ...args) {
+  return [process.execPath, probePath, action, ...args].map(quote).join(' ')
+}
+
+function setVariable(name, value) {
+  return windows ? `set ${name}=${value}` : `export ${name}=${quote(value)}`
+}
+
+function packagedExecutable() {
+  if (process.platform === 'darwin') {
+    return path.join(
+      project,
+      'dist',
+      process.arch === 'arm64' ? 'mac-arm64' : 'mac',
+      'Agent Workspace.app/Contents/MacOS/Agent Workspace',
+    )
+  }
+  if (windows) return path.join(project, 'dist/win-unpacked/Agent Workspace.exe')
+  return path.join(project, 'dist/linux-unpacked/agent-workspace')
+}
+
+const executablePath =
+  process.env.AGENT_WORKSPACE_EXECUTABLE ||
+  (process.argv.includes('--packaged') ? packagedExecutable() : undefined)
 const base = path.join(os.tmpdir(), 'opencode')
 await mkdir(base, { recursive: true })
 const directory = await mkdtemp(path.join(base, 'agent-workspace-smoke-'))
@@ -16,6 +48,7 @@ await mkdir(path.join(project, 'artifacts'), { recursive: true })
 
 const git = (...args) => execFileSync('git', ['-C', repository, ...args], { encoding: 'utf8' })
 git('init', '-b', 'main')
+git('config', 'core.autocrlf', 'false')
 await writeFile(path.join(repository, 'README.md'), '# Aurora App\n\nDesktop smoke-test fixture.\n')
 await mkdir(path.join(repository, 'src'))
 await writeFile(path.join(repository, 'src', 'app.ts'), 'export const name = "Aurora"\n')
@@ -33,18 +66,26 @@ git(
 let app
 let page
 const errors = []
+const logs = []
 
 async function launch() {
   const env = { ...process.env, AGENT_WORKSPACE_USER_DATA: profile }
   delete env.ELECTRON_RUN_AS_NODE
+  delete env.ELECTRON_RENDERER_URL
+  delete env.AGENT_WORKSPACE_OPEN
+  env.ZDOTDIR = directory
+  env.HISTFILE = path.join(directory, 'shell-history')
+  if (!windows) env.SHELL = process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash'
+  const args = executablePath ? [] : [project]
+  if (process.env.AGENT_WORKSPACE_SMOKE_NO_SANDBOX === '1') args.push('--no-sandbox')
   app = await electron.launch({
-    ...(process.env.AGENT_WORKSPACE_EXECUTABLE
-      ? { executablePath: process.env.AGENT_WORKSPACE_EXECUTABLE, args: [] }
-      : { args: [project] }),
+    executablePath,
+    args,
     cwd: project,
     env,
-    timeout: 30_000,
+    timeout: 60_000,
   })
+  app.process().stderr?.on('data', (data) => logs.push(data.toString()))
   page = await app.firstWindow()
   page.on('pageerror', (error) => errors.push(String(error)))
   await page.waitForLoadState('domcontentloaded')
@@ -67,24 +108,23 @@ try {
   await page.getByRole('button', { name: 'Git-Repository öffnen' }).click()
   await expect(page.locator('.worktree-name strong')).toHaveText(['main'])
   await expect(page.locator('.terminal-process.running')).toHaveCount(1)
-  await terminalCommand('printf "MAIN_READY\\n"')
+  await terminalCommand(probe('ready', 'MAIN'))
   await expect(page.locator('.terminal-workspace:visible .xterm-rows')).toContainText('MAIN_READY')
-  await terminalCommand('export WORKTREE_SESSION=main-alive')
-  await terminalCommand('vim -Nu NONE -n README.md')
+  await terminalCommand(setVariable('WORKTREE_SESSION', 'main-alive'))
+  await terminalCommand(probe('tui'))
   await expect(page.locator('.terminal-workspace:visible .xterm-rows')).toContainText(
     'Desktop smoke-test fixture.',
   )
-  await page.keyboard.press('Escape')
-  await page.keyboard.type(':q!')
-  await page.keyboard.press('Enter')
-  await terminalCommand('printf "UNICODE_Grüße_日本\\n"')
+  await page.keyboard.type('q')
+  await expect(page.locator('.terminal-workspace:visible .xterm-rows')).not.toContainText(
+    'Press q to exit.',
+  )
+  await terminalCommand(probe('unicode'))
   await expect(page.locator('.terminal-workspace:visible .xterm-rows')).toContainText(
     'UNICODE_Grüße_日本',
   )
   // More than one flow-control window of output must drain without losing the tail.
-  await terminalCommand(
-    'awk \'BEGIN { for (i=0;i<20000;i++) print "OUTPUT_LOAD_abcdefghijklmnopqrstuvwxyz"; print "FLOW_CONTROL_" "COMPLETE" }\'',
-  )
+  await terminalCommand(probe('flood'))
   await expect(page.locator('.terminal-workspace:visible .xterm-rows')).toContainText(
     'FLOW_CONTROL_COMPLETE',
   )
@@ -100,9 +140,7 @@ try {
     'feat/auth-ui',
   )
   await expect(page.locator('.terminal-workspace:visible .terminal-process.running')).toHaveCount(1)
-  await terminalCommand(
-    'printf "FEATURE_READY\\n"; printf "export const login = true\\n" > src/auth.ts',
-  )
+  await terminalCommand(probe('feature'))
   await expect(page.locator('.terminal-workspace:visible .xterm-rows')).toContainText(
     'FEATURE_READY',
   )
@@ -110,16 +148,16 @@ try {
   await page.getByRole('button', { name: 'Terminal nebeneinander teilen' }).click()
   await expect(page.locator('.terminal-workspace:visible .terminal-pane')).toHaveCount(2)
   await expect(page.locator('.terminal-workspace:visible .terminal-process.running')).toHaveCount(2)
-  await terminalCommand('printf "SPLIT_READY\\n"', 1)
+  await terminalCommand(probe('ready', 'SPLIT'), 1)
   await expect(
     page.locator('.terminal-workspace:visible .terminal-pane').nth(1).locator('.xterm-rows'),
   ).toContainText('SPLIT_READY')
-  await terminalCommand('export SPLIT_SESSION=alive', 1)
+  await terminalCommand(setVariable('SPLIT_SESSION', 'alive'), 1)
   await page.getByRole('button', { name: 'Terminal untereinander teilen' }).nth(1).click()
   await expect(page.locator('.terminal-workspace:visible .terminal-process.running')).toHaveCount(3)
   await page.getByRole('button', { name: 'Terminal schließen', exact: true }).last().click()
   await expect(page.locator('.terminal-workspace:visible .terminal-pane')).toHaveCount(2)
-  await terminalCommand('printf "SPLIT_STATE=%s\\n" "$SPLIT_SESSION"', 1)
+  await terminalCommand(probe('session', 'SPLIT_SESSION', 'SPLIT_STATE'), 1)
   await expect(
     page.locator('.terminal-workspace:visible .terminal-pane').nth(1).locator('.xterm-rows'),
   ).toContainText('SPLIT_STATE=alive')
@@ -127,17 +165,17 @@ try {
   await expect(page.locator('.terminal-workspace:visible .terminal-process.exited')).toHaveCount(1)
   await page.getByRole('button', { name: 'Shell neu starten' }).click()
   await expect(page.locator('.terminal-workspace:visible .terminal-process.running')).toHaveCount(2)
-  await terminalCommand('printf "SHELL_%s\\n" RESTART_OK', 1)
+  await terminalCommand(probe('ready', 'SHELL_RESTART'), 1)
   await expect(
     page.locator('.terminal-workspace:visible .terminal-pane').nth(1).locator('.xterm-rows'),
-  ).toContainText('SHELL_RESTART_OK')
+  ).toContainText('SHELL_RESTART_READY')
 
   await page
     .locator('.worktree-card')
     .filter({ has: page.locator('.worktree-name strong', { hasText: /^main$/ }) })
     .locator('.worktree-select')
     .click()
-  await terminalCommand('printf "SESSION=%s\\n" "$WORKTREE_SESSION"')
+  await terminalCommand(probe('session', 'WORKTREE_SESSION', 'SESSION'))
   await expect(page.locator('.terminal-workspace:visible .xterm-rows')).toContainText(
     'SESSION=main-alive',
   )
@@ -165,11 +203,17 @@ try {
   await page.getByRole('tab', { name: 'Änderungen', exact: true }).click()
   await page.screenshot({ path: path.join(project, 'artifacts', 'workspace.png') })
 
+  await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].setContentSize(1400, 900),
+  )
+  await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(1400)
   const width = await page
     .locator('.terminal-workspace:visible .terminal-host')
     .first()
     .evaluate((element) => element.clientWidth)
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1250, 800))
+  await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].setContentSize(1200, 800),
+  )
   await expect
     .poll(() =>
       page
@@ -191,7 +235,7 @@ try {
   )
   await expect(page.locator('.terminal-workspace:visible .terminal-pane')).toHaveCount(2)
   await expect(page.locator('.terminal-workspace:visible .terminal-process.running')).toHaveCount(2)
-  await terminalCommand('printf "RESTART_READY\\n"')
+  await terminalCommand(probe('ready', 'RESTART'))
   await expect(
     page.locator('.terminal-workspace:visible .terminal-pane').first().locator('.xterm-rows'),
   ).toContainText('RESTART_READY')
@@ -246,5 +290,10 @@ try {
       .catch(() => {})
     await app.close().catch(() => {})
   }
-  await rm(directory, { recursive: true, force: true })
+  await writeFile(path.join(project, 'artifacts', 'electron.log'), logs.join(''))
+  await writeFile(
+    path.join(project, 'artifacts', 'renderer-errors.json'),
+    JSON.stringify(errors, null, 2),
+  )
+  await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
 }

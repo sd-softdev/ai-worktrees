@@ -18,10 +18,14 @@ afterEach(async () => {
 })
 
 it('does not escape a worktree through traversal or symbolic links', async () => {
-  await writeFile(path.join(directory, 'outside.txt'), 'outside')
-  await symlink(path.join(directory, 'outside.txt'), path.join(root, 'link.txt'))
-  await expect(readPreview(root, '../outside.txt')).rejects.toThrow('außerhalb')
-  await expect(readPreview(root, 'link.txt')).rejects.toThrow('außerhalb')
+  const outside = path.join(directory, 'outside')
+  await mkdir(outside)
+  await writeFile(path.join(outside, 'secret.txt'), 'outside')
+  // Directory junctions exercise the same boundary on Windows without requiring
+  // Developer Mode or the privilege for creating file symlinks.
+  await symlink(outside, path.join(root, 'link'), process.platform === 'win32' ? 'junction' : 'dir')
+  await expect(readPreview(root, '../outside/secret.txt')).rejects.toThrow('außerhalb')
+  await expect(readPreview(root, 'link/secret.txt')).rejects.toThrow('außerhalb')
 })
 
 it('bounds large previews and detects binary contents', async () => {

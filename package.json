@@ -3,7 +3,15 @@
   "version": "0.1.0",
   "description": "Ein terminalzentrierter Workspace für parallele Entwicklung mit Git Worktrees.",
   "main": "out/main/index.js",
-  "author": "Agent Workspace",
+  "author": {
+    "name": "sd-softdev",
+    "email": "sd-softdev@users.noreply.github.com"
+  },
+  "homepage": "https://github.com/sd-softdev/ai-worktrees",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sd-softdev/ai-worktrees.git"
+  },
   "license": "UNLICENSED",
   "private": true,
   "engines": {
@@ -16,10 +24,14 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:smoke": "npm run build && node scripts/smoke.mjs",
+    "test:packaged": "node scripts/smoke.mjs --packaged",
     "postinstall": "electron-builder install-app-deps",
-    "pack": "npm run build && electron-builder --dir",
-    "dist:mac": "npm run build && electron-builder --mac dmg",
-    "format": "prettier --write src tests scripts *.json *.ts *.mts *.yml README.md",
+    "pack": "npm run build && electron-builder --dir --publish never",
+    "dist:mac": "npm run build && electron-builder --mac dmg --publish never",
+    "dist:win": "npm run build && electron-builder --win nsis --x64 --publish never",
+    "dist:linux": "npm run build && electron-builder --linux AppImage deb --x64 --publish never",
+    "format": "prettier --write src tests scripts .github *.json *.ts *.mts *.yml README.md",
+    "format:check": "prettier --check src tests scripts .github *.json *.ts *.mts *.yml README.md",
     "generate:icon": "npm run build && node scripts/generate-icon.mjs"
   },
   "dependencies": {

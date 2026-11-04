@@ -1,5 +1,6 @@
 appId: dev.agentworkspace.desktop
 productName: Agent Workspace
+artifactName: ${name}-${version}-${os}-${arch}.${ext}
 directories:
   output: dist
 files:
@@ -16,7 +17,15 @@ mac:
 win:
   target:
     - nsis
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
 linux:
   category: Development
+  executableName: agent-workspace
+  synopsis: Terminal workspace for parallel development with Git worktrees
   target:
     - AppImage
+    - deb

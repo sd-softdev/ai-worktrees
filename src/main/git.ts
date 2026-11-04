@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { access, appendFile, mkdir, readFile, realpath } from 'node:fs/promises'
+import { appendFile, mkdir, readFile, realpath } from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import type { ChangedFile, Commit, DiffRequest, Workspace, Worktree } from '../shared/types'
@@ -38,7 +38,7 @@ export function parseWorktrees(output: string): Worktree[] {
       const value = (key: string) =>
         fields.find((line) => line.startsWith(`${key} `))?.slice(key.length + 1)
       return {
-        path: value('worktree') ?? '',
+        path: value('worktree') ? path.normalize(value('worktree')!) : '',
         head: value('HEAD') ?? '',
         branch: value('branch')?.replace(/^refs\/heads\//, '') ?? null,
         isMain: index === 0,
@@ -86,7 +86,9 @@ export async function inspectWorkspace(directory: string): Promise<Workspace> {
     await Promise.all(
       worktrees.slice(i, i + 4).map(async (worktree) => {
         try {
-          await access(worktree.path)
+          // Git for Windows emits forward slashes; use the same canonical paths
+          // for discovered worktrees, newly created worktrees and persisted state.
+          worktree.path = await realpath(worktree.path)
         } catch {
           worktree.missing = true
           return
@@ -109,7 +111,7 @@ export async function inspectWorkspace(directory: string): Promise<Workspace> {
     ])
   )
     .trim()
-    .split('\n')
+    .split(/\r?\n/)
     .filter((branch) => branch && !branch.endsWith('/HEAD'))
   const rootPath = worktrees[0].path
   return {
@@ -145,7 +147,7 @@ export async function addWorktree(
   }
   const destination = path.join(worktreesDir, `${slug}-${suffix}`)
   await git(workspace.rootPath, ['worktree', 'add', '-b', branch, '--', destination, commit])
-  return destination
+  return realpath(destination)
 }
 
 export async function removeWorktree(workspace: Workspace, worktree: Worktree): Promise<void> {
