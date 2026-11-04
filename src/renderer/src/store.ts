@@ -9,6 +9,7 @@ import {
   type Workspace,
   type WorkspacePreferences,
   type WorktreePreferences,
+  type RemoteStatus,
 } from '../../shared/types'
 
 type TerminalState = { state: 'starting' | 'running' | 'exited' | 'error'; exitCode?: number }
@@ -23,6 +24,8 @@ interface AppState {
   error: string | null
   revision: number
   workspaceSession: number
+  remoteStatus: RemoteStatus | null
+  setRemoteStatus(status: RemoteStatus): void
   acceptWorkspace(value: OpenWorkspace): void
   updateWorkspace(value: Workspace): void
   setError(error: unknown): void
@@ -58,6 +61,19 @@ export const useApp = create<AppState>((set, get) => ({
   error: null,
   revision: 0,
   workspaceSession: 0,
+  remoteStatus: null,
+  setRemoteStatus: (remoteStatus) => {
+    const terminals =
+      remoteStatus.state === 'disconnected'
+        ? Object.fromEntries(
+            Object.keys(get().terminals).map((id) => [
+              id,
+              { state: 'exited' as const, exitCode: 255 },
+            ]),
+          )
+        : get().terminals
+    set({ remoteStatus, terminals })
+  },
   acceptWorkspace: ({ workspace, preferences }) => {
     set({
       workspace,
@@ -69,6 +85,7 @@ export const useApp = create<AppState>((set, get) => ({
       loading: false,
       revision: get().revision + 1,
       workspaceSession: get().workspaceSession + 1,
+      remoteStatus: workspace.remote ? { state: 'connected', host: workspace.remote.host } : null,
     })
     if (
       preferences.activeWorktree &&
@@ -78,7 +95,7 @@ export const useApp = create<AppState>((set, get) => ({
     }
   },
   updateWorkspace: (workspace) => {
-    if (get().workspace?.commonDir !== workspace.commonDir) return
+    if (get().workspace?.id !== workspace.id) return
     const validTerminals = new Set(
       workspace.worktrees
         .filter((worktree) => !worktree.missing)
@@ -197,9 +214,7 @@ export const useApp = create<AppState>((set, get) => ({
 // This also makes window close and workspace switch independent of debounce timers.
 useApp.subscribe((state, previous) => {
   if (!state.workspace || state.preferences === previous.preferences) return
-  void window.desktop
-    .savePreferences(state.workspace.commonDir, state.preferences)
-    .catch(state.setError)
+  void window.desktop.savePreferences(state.workspace.id, state.preferences).catch(state.setError)
 })
 
 export async function openWorkspace(): Promise<void> {
@@ -219,7 +234,8 @@ export async function openWorkspace(): Promise<void> {
 let refreshing = false
 export async function refreshWorkspace(): Promise<void> {
   const app = useApp.getState()
-  if (!app.workspace || app.loading || refreshing) return
+  if (!app.workspace || app.loading || refreshing || app.remoteStatus?.state === 'disconnected')
+    return
   refreshing = true
   try {
     app.updateWorkspace(await window.desktop.refreshWorkspace())

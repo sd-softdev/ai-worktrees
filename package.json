@@ -18,13 +18,15 @@
     "node": "^22.16.0 || ^24.0.0 || >=26.0.0"
   },
   "scripts": {
-    "dev": "electron-vite dev",
-    "build": "npm run typecheck && electron-vite build",
+    "dev": "npm run build:remote && electron-vite dev",
+    "build": "npm run typecheck && electron-vite build && npm run build:remote",
+    "build:remote": "node scripts/build-remote.mjs",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:smoke": "npm run build && node scripts/smoke.mjs",
     "test:packaged": "node scripts/smoke.mjs --packaged",
+    "test:ssh": "node scripts/ssh-smoke.mjs --packaged",
     "postinstall": "electron-builder install-app-deps",
     "pack": "npm run build && electron-builder --dir --publish never",
     "dist:mac": "npm run build && electron-builder --mac dmg --publish never",

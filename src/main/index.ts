@@ -1,11 +1,15 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
 import path from 'node:path'
+import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import { changes, diff, history } from './git'
-import { listFiles, readPreview } from './files'
 import { SettingsStore } from './settings'
 import { TerminalService } from './terminals'
 import { WorkspaceService } from './workspace'
+import { configuredHosts } from './ssh/config'
+import { SshAuthentication } from './ssh/auth'
+import { SshConnection } from './ssh/connection'
+import { SshBackend } from './ssh/backend'
+import type { SshConnectInput } from '../shared/types'
 import {
   createWorktreeSchema,
   diffSchema,
@@ -14,6 +18,7 @@ import {
   preferencesSchema,
   relativePathSchema,
   sizeSchema,
+  sshConnectSchema,
 } from './schema'
 
 // Dedicated profile and workspace for repeatable desktop smoke tests.
@@ -29,6 +34,52 @@ const terminals = new TerminalService((event) => {
   if (window && !window.isDestroyed()) window.webContents.send('terminal:event', event)
 })
 const workspace = new WorkspaceService(settings, terminals)
+let pendingRemote: SshBackend | null = null
+const send = (channel: string, value: unknown) => {
+  if (window && !window.isDestroyed()) window.webContents.send(channel, value)
+}
+const authentication = new SshAuthentication(
+  path.join(app.getPath('userData'), 'ssh'),
+  process.execPath,
+  app.isPackaged
+    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'out/main/askpass.js')
+    : path.join(__dirname, 'askpass.js'),
+  (prompt) => send('ssh:prompt', prompt),
+  (id) => send('ssh:prompt-closed', id),
+)
+
+function remoteBackend(input: SshConnectInput): SshBackend {
+  const backend = new SshBackend(
+    new SshConnection(
+      input,
+      authentication,
+      path.join(__dirname, '../remote/agent.cjs'),
+      (message) => {
+        if (workspace.backend !== backend) return
+        terminals.closeAll()
+        send('ssh:status', { state: 'disconnected', host: input.host, message })
+      },
+    ),
+  )
+  return backend
+}
+
+function requirePending(id: string): SshBackend {
+  if (!pendingRemote || pendingRemote.connection.id !== id)
+    throw new Error('SSH-Verbindung nicht mehr verfügbar.')
+  return pendingRemote
+}
+
+async function restoreRemote(target: { host: string; nodePath: string; path: string }) {
+  const backend = remoteBackend({ id: randomUUID(), host: target.host, nodePath: target.nodePath })
+  try {
+    await backend.connection.start()
+    return await workspace.open(target.path, backend)
+  } catch (error) {
+    backend.close()
+    throw error
+  }
+}
 
 function trusted(event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent): void {
   if (
@@ -65,13 +116,22 @@ function registerIpc(): void {
   handle('workspace:bootstrap', () =>
     workspace.serialize(async () => {
       if (workspace.current) {
+        if (
+          workspace.current.remote &&
+          workspace.backend instanceof SshBackend &&
+          !workspace.backend.connection.connected
+        ) {
+          return restoreRemote({ ...workspace.current.remote, path: workspace.current.rootPath })
+        }
         return {
           workspace: workspace.current,
-          preferences: await settings.load(workspace.current.commonDir),
+          preferences: await settings.load(workspace.current.id),
         }
       }
       const directory = process.env.AGENT_WORKSPACE_OPEN || (await settings.lastWorkspace())
-      return directory ? workspace.open(directory) : null
+      if (directory) return workspace.open(directory)
+      const remote = await settings.lastRemote()
+      return remote ? restoreRemote(remote) : null
     }),
   )
   handle('workspace:open', () =>
@@ -86,6 +146,53 @@ function registerIpc(): void {
     }),
   )
   handle('workspace:refresh', () => workspace.serialize(() => workspace.refresh()))
+  handle('ssh:hosts', () => configuredHosts())
+  handle('ssh:connect', async (value) => {
+    const input = sshConnectSchema.parse(value)
+    pendingRemote?.close()
+    const backend = remoteBackend(input)
+    pendingRemote = backend
+    try {
+      await backend.connection.start()
+      return await backend.browse('~')
+    } catch (error) {
+      backend.close()
+      if (pendingRemote === backend) pendingRemote = null
+      throw error
+    }
+  })
+  handle('ssh:browse', (id, directory) =>
+    requirePending(idSchema.parse(id)).browse(pathSchema.parse(directory)),
+  )
+  handle('ssh:open', (id, directory) => {
+    const connectionId = idSchema.parse(id)
+    const remotePath = pathSchema.parse(directory)
+    return workspace.serialize(async () => {
+      if (!(await confirmWorkspaceSwitch())) return null
+      const backend = requirePending(connectionId)
+      const result = await workspace.open(remotePath, backend)
+      pendingRemote = null
+      return result
+    })
+  })
+  handle('ssh:cancel', (id) => {
+    if (pendingRemote?.connection.id === idSchema.parse(id)) {
+      pendingRemote.close()
+      pendingRemote = null
+    }
+  })
+  handle('ssh:reconnect', () =>
+    workspace.serialize(async () => {
+      const current = workspace.requireWorkspace()
+      if (!current.remote) throw new Error('Kein SSH-Workspace geöffnet.')
+      return restoreRemote({ ...current.remote, path: current.rootPath })
+    }),
+  )
+  ipcMain.on('ssh:answer', (event, id, answer) => {
+    trusted(event)
+    const input = z.tuple([idSchema, z.string().max(4096).nullable()]).safeParse([id, answer])
+    if (input.success) authentication.answer(...input.data)
+  })
   handle('worktree:create', (input) => {
     const value = createWorktreeSchema.parse(input)
     return workspace.serialize(() => workspace.create(value.branch, value.base, value.task))
@@ -97,19 +204,26 @@ function registerIpc(): void {
   handle('preferences:save', (commonDir, value) =>
     workspace.save(pathSchema.parse(commonDir), preferencesSchema.parse(value)),
   )
-  handle('git:changes', (value) => changes(workspace.requireWorktree(pathSchema.parse(value)).path))
-  handle('git:history', (value) => history(workspace.requireWorktree(pathSchema.parse(value)).path))
+  handle('git:changes', (value) =>
+    workspace.backend.changes(workspace.requireWorktree(pathSchema.parse(value)).path),
+  )
+  handle('git:history', (value) =>
+    workspace.backend.history(workspace.requireWorktree(pathSchema.parse(value)).path),
+  )
   handle('git:diff', (value, request) =>
-    diff(workspace.requireWorktree(pathSchema.parse(value)).path, diffSchema.parse(request)),
+    workspace.backend.diff(
+      workspace.requireWorktree(pathSchema.parse(value)).path,
+      diffSchema.parse(request),
+    ),
   )
   handle('files:list', (value, relativePath) =>
-    listFiles(
+    workspace.backend.listFiles(
       workspace.requireWorktree(pathSchema.parse(value)).path,
       relativePathSchema.parse(relativePath),
     ),
   )
   handle('files:read', (value, relativePath) =>
-    readPreview(
+    workspace.backend.readFile(
       workspace.requireWorktree(pathSchema.parse(value)).path,
       relativePathSchema.parse(relativePath),
     ),
@@ -120,6 +234,7 @@ function registerIpc(): void {
       workspace.requireWorktree(pathSchema.parse(worktreePath)).path,
       sizeSchema.parse(cols),
       sizeSchema.parse(rows),
+      workspace.backend.terminal?.(pathSchema.parse(worktreePath)),
     ),
   )
   handle('terminal:close', (id) => terminals.close(idSchema.parse(id)))
@@ -194,7 +309,8 @@ function createWindow(): void {
         if (result.response !== 1) return
       }
       await settings.flush()
-      terminals.closeAll()
+      workspace.close()
+      pendingRemote?.close()
       closing = true
       window?.close()
     })()
@@ -241,5 +357,9 @@ else {
     createWindow()
   })
   app.on('window-all-closed', () => app.quit())
-  app.on('will-quit', () => terminals.closeAll())
+  app.on('will-quit', () => {
+    workspace.close()
+    pendingRemote?.close()
+    authentication.dispose()
+  })
 }

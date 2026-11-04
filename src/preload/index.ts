@@ -5,6 +5,30 @@ const api: DesktopAPI = {
   platform: process.platform,
   bootstrap: () => ipcRenderer.invoke('workspace:bootstrap'),
   openWorkspace: () => ipcRenderer.invoke('workspace:open'),
+  sshHosts: () => ipcRenderer.invoke('ssh:hosts'),
+  connectSsh: (input) => ipcRenderer.invoke('ssh:connect', input),
+  browseSsh: (id, directory) => ipcRenderer.invoke('ssh:browse', id, directory),
+  openSshWorkspace: (id, directory) => ipcRenderer.invoke('ssh:open', id, directory),
+  cancelSsh: (id) => ipcRenderer.invoke('ssh:cancel', id),
+  reconnectWorkspace: () => ipcRenderer.invoke('ssh:reconnect'),
+  answerSshPrompt: (id, answer) => ipcRenderer.send('ssh:answer', id, answer),
+  onSshPrompt: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, value: Parameters<typeof listener>[0]) =>
+      listener(value)
+    ipcRenderer.on('ssh:prompt', handler)
+    return () => ipcRenderer.removeListener('ssh:prompt', handler)
+  },
+  onSshPromptClosed: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, id: string) => listener(id)
+    ipcRenderer.on('ssh:prompt-closed', handler)
+    return () => ipcRenderer.removeListener('ssh:prompt-closed', handler)
+  },
+  onRemoteStatus: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, value: Parameters<typeof listener>[0]) =>
+      listener(value)
+    ipcRenderer.on('ssh:status', handler)
+    return () => ipcRenderer.removeListener('ssh:status', handler)
+  },
   refreshWorkspace: () => ipcRenderer.invoke('workspace:refresh'),
   createWorktree: (input) => ipcRenderer.invoke('worktree:create', input),
   removeWorktree: (path) => ipcRenderer.invoke('worktree:remove', path),

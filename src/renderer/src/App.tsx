@@ -8,6 +8,8 @@ import {
   GitBranch,
   Layers3,
   RefreshCw,
+  Server,
+  Unplug,
   TerminalSquare,
   X,
 } from 'lucide-react'
@@ -17,6 +19,7 @@ import { WorktreeSidebar } from './components/WorktreeSidebar'
 import { TerminalWorkspace } from './components/Terminals'
 import { Inspector } from './components/Inspector'
 import { ResizeHandle } from './components/ResizeHandle'
+import { SshConnectionDialog, SshPrompts } from './components/SshConnection'
 
 export function App() {
   const workspace = useApp((state) => state.workspace)
@@ -26,6 +29,8 @@ export function App() {
   const terminals = useApp((state) => state.terminals)
   const loading = useApp((state) => state.loading)
   const error = useApp((state) => state.error)
+  const remoteStatus = useApp((state) => state.remoteStatus)
+  const [sshDialog, setSshDialog] = useState(false)
   const [windowWidth, setWindowWidth] = useState(window.innerWidth)
   const leftMax = Math.min(400, Math.floor(windowWidth * 0.3))
   const rightMax = Math.min(600, Math.floor(windowWidth * 0.36))
@@ -53,12 +58,16 @@ export function App() {
       .finally(() => useApp.getState().setLoading(false))
     const unsubscribe = window.desktop.onOpenRequested(() => void openWorkspace())
     const changed = window.desktop.onWorkspaceChanged(() => void refreshWorkspace())
+    const remote = window.desktop.onRemoteStatus((status) =>
+      useApp.getState().setRemoteStatus(status),
+    )
     const timer = setInterval(() => {
       if (!document.hidden) void refreshWorkspace()
     }, 5000)
     return () => {
       unsubscribe()
       changed()
+      remote()
       clearInterval(timer)
     }
   }, [])
@@ -103,7 +112,7 @@ export function App() {
         </div>
         <span className="local-badge">
           <span className="dot green" />
-          LOCAL
+          {workspace?.remote ? `SSH · ${workspace.remote.host}` : 'LOCAL'}
         </span>
       </header>
       <div className="toolbar">
@@ -114,6 +123,10 @@ export function App() {
         >
           <FolderOpen size={17} />
           Workspace öffnen <span className="shortcut">{modifier}O</span>
+        </button>
+        <button className="secondary-button" disabled={loading} onClick={() => setSshDialog(true)}>
+          <Server size={16} />
+          SSH verbinden
         </button>
         {workspace && (
           <>
@@ -136,6 +149,27 @@ export function App() {
           </>
         )}
       </div>
+      {remoteStatus?.state === 'disconnected' && (
+        <div className="remote-disconnected" role="status">
+          <Unplug size={16} />
+          <span>SSH-Verbindung zu {remoteStatus.host} unterbrochen.</span>
+          <button
+            className="secondary-button"
+            disabled={loading}
+            title={remoteStatus.message}
+            onClick={() => {
+              useApp.getState().setLoading(true)
+              void window.desktop
+                .reconnectWorkspace()
+                .then(useApp.getState().acceptWorkspace)
+                .catch(useApp.getState().setError)
+                .finally(() => useApp.getState().setLoading(false))
+            }}
+          >
+            Wiederverbinden
+          </button>
+        </div>
+      )}
       {error && (
         <div className="error-banner" role="alert">
           <span>{error}</span>
@@ -167,7 +201,7 @@ export function App() {
               )
               .map((path) => (
                 <TerminalWorkspace
-                  key={`${workspaceSession}:${workspace.commonDir}:${path}`}
+                  key={`${workspaceSession}:${workspace.id}:${path}`}
                   worktree={path}
                   visible={path === preferences.activeWorktree}
                 />
@@ -182,7 +216,7 @@ export function App() {
             onChange={(rightWidth) => useApp.getState().updatePreferences({ rightWidth })}
           />
           <div className="right-panel" style={{ width: rightWidth }}>
-            {preferences.activeWorktree && <Inspector />}
+            {preferences.activeWorktree && <Inspector key={workspace.id} />}
           </div>
         </main>
       ) : (
@@ -211,6 +245,11 @@ export function App() {
               <FolderOpen size={18} />
               {loading ? 'Workspace laden …' : 'Git-Repository öffnen'}
               <ArrowUpRight size={17} />
+            </button>
+            <button className="welcome-ssh" disabled={loading} onClick={() => setSshDialog(true)}>
+              <Server size={14} />
+              Mit SSH-Host verbinden
+              <ChevronRight size={13} />
             </button>
             <div className="welcome-shortcut">
               <Command size={12} />
@@ -247,7 +286,7 @@ export function App() {
               <span>{active?.branch ?? 'Detached HEAD'}</span>
               <span className="status-divider" />
               {active?.changedFiles ? (
-                <span className="yellow-text">{active.changedFiles} lokale Änderungen</span>
+                <span className="yellow-text">{active.changedFiles} Änderungen</span>
               ) : active?.statusError ? (
                 <span>Git-Status nicht verfügbar</span>
               ) : (
@@ -276,6 +315,8 @@ export function App() {
           </span>
         </div>
       </footer>
+      {sshDialog && <SshConnectionDialog onClose={() => setSshDialog(false)} />}
+      <SshPrompts />
     </div>
   )
 }

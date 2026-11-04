@@ -1,8 +1,12 @@
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { defaultPreferences, type WorkspacePreferences } from '../shared/types'
-import { preferencesSchema } from './schema'
+import {
+  defaultPreferences,
+  type RemoteWorkspaceReference,
+  type WorkspacePreferences,
+} from '../shared/types'
+import { preferencesSchema, remoteReferenceSchema } from './schema'
 
 export class SettingsStore {
   private queue: Promise<unknown> = Promise.resolve()
@@ -37,6 +41,18 @@ export class SettingsStore {
     }
   }
 
+  async lastRemote(): Promise<RemoteWorkspaceReference | null> {
+    try {
+      const value: unknown = JSON.parse(
+        await readFile(path.join(this.directory, 'recent.json'), 'utf8'),
+      )
+      const parsed = remoteReferenceSchema.safeParse(value)
+      return parsed.success ? parsed.data : null
+    } catch {
+      return null
+    }
+  }
+
   private write(filename: string, value: unknown): Promise<void> {
     const next = this.queue
       .catch(() => {})
@@ -53,7 +69,7 @@ export class SettingsStore {
     return this.write(this.filename(commonDir), preferences)
   }
 
-  remember(rootPath: string): Promise<void> {
+  remember(rootPath: string | RemoteWorkspaceReference): Promise<void> {
     return this.write(path.join(this.directory, 'recent.json'), rootPath)
   }
 

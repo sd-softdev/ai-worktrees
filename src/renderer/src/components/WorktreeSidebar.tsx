@@ -14,6 +14,7 @@ import { leaves } from '../../../shared/layout'
 import { defaultWorktreePreferences, type TaskStatus, type Worktree } from '../../../shared/types'
 import { errorMessage, useApp } from '../store'
 import { Modal } from './Modal'
+import { APP_VERSION } from '../../../shared/version'
 
 export const taskLabels: Record<TaskStatus, string> = {
   todo: 'Offen',
@@ -54,7 +55,9 @@ export function WorktreeSidebar() {
           <FolderGit2 size={22} />
           <strong>{workspace.name}</strong>
         </div>
-        <span className="muted small">Git-Repository</span>
+        <span className="muted small">
+          {workspace.remote ? `SSH · ${workspace.remote.host}` : 'Git-Repository'}
+        </span>
         <span className="repository-path" title={workspace.rootPath}>
           {workspace.rootPath}
         </span>
@@ -163,7 +166,8 @@ export function WorktreeSidebar() {
       </div>
       <div className="sidebar-footer">
         <span className="dot green" />
-        Lokaler Workspace<span className="version">v0.1</span>
+        {workspace.remote ? `SSH · ${workspace.remote.host}` : 'Lokaler Workspace'}
+        <span className="version">v{APP_VERSION}</span>
       </div>
       {creating && <CreateWorktreeDialog onClose={() => setCreating(false)} />}
       {editing && <TaskDialog worktree={editing} onClose={() => setEditing(null)} />}
@@ -211,7 +215,7 @@ function CreateWorktreeDialog({ onClose }: { onClose: () => void }) {
     setError(null)
     try {
       const app = useApp.getState()
-      await window.desktop.savePreferences(workspace.commonDir, app.preferences)
+      await window.desktop.savePreferences(workspace.id, app.preferences)
       const result = await window.desktop.createWorktree({ branch: branch.trim(), base, task })
       // Keep the running sessions of existing worktrees mounted.
       app.updateWorkspace(result.workspace)

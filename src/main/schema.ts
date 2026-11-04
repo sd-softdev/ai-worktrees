@@ -5,6 +5,23 @@ export const pathSchema = z.string().min(1).max(4096)
 export const idSchema = z.uuid()
 export const sizeSchema = z.number().int().min(1).max(1000)
 export const relativePathSchema = z.string().max(4096)
+export const sshTargetSchema = z.object({
+  host: z
+    .string()
+    .min(1)
+    .max(255)
+    .regex(/^[^\s\x00-\x1f-][^\s\x00-\x1f]*$/),
+  nodePath: z
+    .string()
+    .min(1)
+    .max(4096)
+    .refine((value) => !/[\x00\r\n]/.test(value)),
+})
+export const sshConnectSchema = sshTargetSchema.extend({ id: idSchema })
+export const remoteReferenceSchema = sshTargetSchema.extend({
+  kind: z.literal('ssh'),
+  path: pathSchema,
+})
 
 const layoutSchema: z.ZodType<TerminalLayout> = z.lazy(() =>
   z.discriminatedUnion('type', [

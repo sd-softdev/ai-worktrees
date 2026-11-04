@@ -1276,3 +1276,90 @@ svg {
     transition: none !important;
   }
 }
+
+.ssh-host-list,
+.remote-folder-list {
+  max-height: 230px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+}
+.ssh-host,
+.remote-folder-list > button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 10px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.ssh-host > span,
+.remote-folder-list > button > span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ssh-host.selected,
+.ssh-host:hover,
+.remote-folder-list > button:hover {
+  background: #8756bc25;
+  color: #d6b4ff;
+}
+.ssh-advanced {
+  color: var(--muted);
+  font-size: 11px;
+}
+.ssh-advanced summary {
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+.ssh-connected,
+.remote-folder-actions,
+.remote-path {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.remote-path input {
+  flex: 1;
+  font-family: monospace;
+  font-size: 11px;
+}
+.remote-folder-list > .muted {
+  display: block;
+  padding: 12px;
+}
+.ssh-prompt-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ssh-prompt-icon {
+  color: var(--purple);
+}
+.welcome-ssh {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 18px auto 0;
+  color: #ac92cc;
+  font-size: 11px;
+}
+.welcome-ssh:hover {
+  color: #d8b5ff;
+}
+.remote-disconnected {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: #44351e;
+  color: #ebcc96;
+  font-size: 11px;
+}
+.remote-disconnected .secondary-button {
+  margin-left: auto;
+}

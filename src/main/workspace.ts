@@ -1,16 +1,16 @@
-import path from 'node:path'
 import {
   defaultWorktreePreferences,
   type OpenWorkspace,
   type Workspace,
   type WorkspacePreferences,
 } from '../shared/types'
-import { addWorktree, inspectWorkspace, removeWorktree } from './git'
+import { localBackend, type WorkspaceBackend } from './backend'
 import { SettingsStore } from './settings'
 import { TerminalService } from './terminals'
 
 export class WorkspaceService {
   current: Workspace | null = null
+  backend: WorkspaceBackend = localBackend
   private mutations: Promise<unknown> = Promise.resolve()
 
   constructor(
@@ -36,25 +36,31 @@ export class WorkspaceService {
     return worktree
   }
 
-  async open(directory: string): Promise<OpenWorkspace> {
-    const workspace = await inspectWorkspace(directory)
-    const preferences = await this.settings.load(workspace.commonDir)
+  async open(directory: string, backend: WorkspaceBackend = localBackend): Promise<OpenWorkspace> {
+    const workspace = await backend.inspect(directory)
+    const preferences = await this.settings.load(workspace.id)
     if (
       !workspace.worktrees.some((item) => item.path === preferences.activeWorktree && !item.missing)
     ) {
       preferences.activeWorktree = workspace.worktrees.find((item) => !item.missing)?.path ?? null
     }
     if (!preferences.targetBranch) preferences.targetBranch = workspace.defaultBase
+    await this.settings.remember(
+      workspace.remote
+        ? { kind: 'ssh', ...workspace.remote, path: workspace.rootPath }
+        : workspace.rootPath,
+    )
     this.terminals.closeAll()
+    if (this.backend !== backend) this.backend.close()
+    this.backend = backend
     this.current = workspace
-    await this.settings.remember(workspace.rootPath)
     return { workspace, preferences }
   }
 
   async refresh(): Promise<Workspace> {
     const current = this.requireWorkspace()
     const directory = current.worktrees.find((item) => !item.missing)?.path ?? current.rootPath
-    const workspace = await inspectWorkspace(directory)
+    const workspace = await this.backend.inspect(directory)
     this.terminals.reconcileWorktrees(
       new Set(workspace.worktrees.filter((item) => !item.missing).map((item) => item.path)),
     )
@@ -64,11 +70,11 @@ export class WorkspaceService {
 
   async create(branch: string, base: string, task: string): Promise<OpenWorkspace> {
     const workspace = this.requireWorkspace()
-    const destination = await addWorktree(workspace, branch, base)
-    const preferences = await this.settings.load(workspace.commonDir)
+    const destination = await this.backend.create(workspace, branch, base)
+    const preferences = await this.settings.load(workspace.id)
     preferences.worktrees[destination] = { ...defaultWorktreePreferences(), task }
     preferences.activeWorktree = destination
-    await this.settings.save(workspace.commonDir, preferences)
+    await this.settings.save(workspace.id, preferences)
     return { workspace: await this.refresh(), preferences }
   }
 
@@ -77,16 +83,17 @@ export class WorkspaceService {
     if (this.terminals.hasRunning(worktreePath)) {
       throw new Error('Bitte zuerst die laufenden Terminals dieses Worktrees schließen.')
     }
-    await removeWorktree(this.requireWorkspace(), worktree)
+    await this.backend.remove(this.requireWorkspace(), worktree)
     return this.refresh()
   }
 
-  async save(commonDir: string, preferences: WorkspacePreferences): Promise<void> {
-    if (this.requireWorkspace().commonDir !== commonDir) return
-    await this.settings.save(commonDir, preferences)
+  async save(workspaceId: string, preferences: WorkspacePreferences): Promise<void> {
+    if (this.requireWorkspace().id !== workspaceId) return
+    await this.settings.save(workspaceId, preferences)
   }
 
-  get displayName(): string {
-    return this.current ? path.basename(this.current.rootPath) : 'Agent Workspace'
+  close(): void {
+    this.terminals.closeAll()
+    this.backend.close()
   }
 }

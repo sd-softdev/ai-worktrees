@@ -1,6 +1,8 @@
 import os from 'node:os'
 import * as pty from 'node-pty'
 import type { SequencedTerminalEvent, TerminalSnapshot } from '../shared/types'
+import type { TerminalLaunch } from './backend'
+import { APP_VERSION } from '../shared/version'
 
 interface Session {
   process: pty.IPty
@@ -23,7 +25,13 @@ export class TerminalService {
 
   constructor(private emit: (event: SequencedTerminalEvent) => void) {}
 
-  open(id: string, worktree: string, cols: number, rows: number): TerminalSnapshot {
+  open(
+    id: string,
+    worktree: string,
+    cols: number,
+    rows: number,
+    launch?: TerminalLaunch,
+  ): TerminalSnapshot {
     const existing = this.sessions.get(id)
     if (existing) {
       if (existing.worktree !== worktree)
@@ -45,15 +53,20 @@ export class TerminalService {
     env.TERM = 'xterm-256color'
     env.COLORTERM = 'truecolor'
     env.TERM_PROGRAM = 'AgentWorkspace'
-    env.TERM_PROGRAM_VERSION = '0.1.0'
+    env.TERM_PROGRAM_VERSION = APP_VERSION
+    Object.assign(env, launch?.env)
     // A login shell also loads the user's CLI PATH when launched from Finder.
-    const terminal = pty.spawn(shell, process.platform === 'win32' ? [] : ['-l'], {
-      name: 'xterm-256color',
-      cols,
-      rows,
-      cwd: worktree,
-      env,
-    })
+    const terminal = pty.spawn(
+      launch?.file ?? shell,
+      launch?.args ?? (process.platform === 'win32' ? [] : ['-l']),
+      {
+        name: 'xterm-256color',
+        cols,
+        rows,
+        cwd: launch?.cwd ?? worktree,
+        env,
+      },
+    )
     const session: Session = {
       process: terminal,
       worktree,

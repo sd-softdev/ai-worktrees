@@ -14,12 +14,52 @@ export interface Worktree {
 }
 
 export interface Workspace {
+  id: string
   name: string
   rootPath: string
   commonDir: string
   worktrees: Worktree[]
   branches: string[]
   defaultBase: string
+  remote?: SshTarget
+}
+
+export interface SshTarget {
+  host: string
+  nodePath: string
+}
+
+export interface SshConnectInput extends SshTarget {
+  id: string
+}
+
+export interface RemoteWorkspaceReference extends SshTarget {
+  kind: 'ssh'
+  path: string
+}
+
+export interface SshHost {
+  alias: string
+}
+
+export interface RemoteDirectory {
+  path: string
+  parent: string
+  home: string
+  directories: string[]
+}
+
+export interface SshPrompt {
+  id: string
+  host: string
+  prompt: string
+  confirmation: boolean
+}
+
+export interface RemoteStatus {
+  state: 'connected' | 'disconnected'
+  host: string
+  message?: string
 }
 
 export interface TerminalLeaf {
@@ -127,6 +167,16 @@ export interface DesktopAPI {
   platform: string
   bootstrap(): Promise<OpenWorkspace | null>
   openWorkspace(): Promise<OpenWorkspace | null>
+  sshHosts(): Promise<SshHost[]>
+  connectSsh(input: SshConnectInput): Promise<RemoteDirectory>
+  browseSsh(id: string, directory: string): Promise<RemoteDirectory>
+  openSshWorkspace(id: string, directory: string): Promise<OpenWorkspace | null>
+  cancelSsh(id: string): Promise<void>
+  reconnectWorkspace(): Promise<OpenWorkspace>
+  answerSshPrompt(id: string, answer: string | null): void
+  onSshPrompt(listener: (prompt: SshPrompt) => void): () => void
+  onSshPromptClosed(listener: (id: string) => void): () => void
+  onRemoteStatus(listener: (status: RemoteStatus) => void): () => void
   refreshWorkspace(): Promise<Workspace>
   createWorktree(input: CreateWorktreeInput): Promise<OpenWorkspace>
   removeWorktree(path: string): Promise<Workspace>

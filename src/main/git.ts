@@ -115,6 +115,7 @@ export async function inspectWorkspace(directory: string): Promise<Workspace> {
     .filter((branch) => branch && !branch.endsWith('/HEAD'))
   const rootPath = worktrees[0].path
   return {
+    id: commonDir,
     name: path.basename(rootPath),
     rootPath,
     commonDir,
