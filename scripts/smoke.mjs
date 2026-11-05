@@ -93,6 +93,10 @@ async function launch() {
   page = await app.firstWindow()
   page.on('pageerror', (error) => errors.push(String(error)))
   await page.waitForLoadState('domcontentloaded')
+  // Match compact hosted desktops so drag-and-drop must work across a scrolling list.
+  await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].setContentSize(1024, 650),
+  )
 }
 
 async function terminalCommand(command, index = 0) {
@@ -347,14 +351,21 @@ try {
     'feat/second',
   ])
   const firstCard = page.locator('.worktree-drop-target').filter({ hasText: 'feat/auth-ui' })
-  await page
-    .getByRole('button', { name: 'Reorder worktree feat/second' })
-    .dragTo(firstCard, { targetPosition: { x: 80, y: 5 } })
+  const secondGrip = page.getByRole('button', { name: 'Reorder worktree feat/second' })
+  await secondGrip.hover()
+  const grip = await secondGrip.boundingBox()
+  await page.mouse.down()
+  // Start the native drag before scrolling the target into view. dragTo() can
+  // scroll the source away before its first mousemove on a small desktop.
+  await page.mouse.move(grip.x + grip.width + 8, grip.y + grip.height / 2, { steps: 5 })
+  await expect(page.locator('.worktree-drop-target.dragging')).toHaveCount(1)
+  await firstCard.locator('.worktree-name').hover()
+  await firstCard.locator('.worktree-name').hover()
+  await page.mouse.up()
   await expect(page.locator('.worktree-list .worktree-name strong')).toHaveText([
     'feat/second',
     'feat/auth-ui',
   ])
-  const secondGrip = page.getByRole('button', { name: 'Reorder worktree feat/second' })
   await secondGrip.focus()
   await page.keyboard.press('ArrowDown')
   await expect(page.locator('.worktree-list .worktree-name strong')).toHaveText([
