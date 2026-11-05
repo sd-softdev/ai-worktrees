@@ -188,7 +188,7 @@ export function App() {
       {workspace ? (
         <main className="workspace-layout">
           <div className="left-panel" style={{ width: leftWidth }}>
-            <WorktreeSidebar />
+            <WorktreeSidebar key={`${workspaceSession}:${workspace.id}`} />
           </div>
           <ResizeHandle
             label="Worktree sidebar width"

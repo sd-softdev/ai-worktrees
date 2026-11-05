@@ -155,10 +155,13 @@ export class SshConnection {
     if (!this.connected) return Promise.reject(new Error('SSH connection lost. Please reconnect.'))
     const id = randomUUID()
     return new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pending.delete(id)
-        reject(new Error(`Remote operation timed out: ${method}`))
-      }, 60_000)
+      const timer = setTimeout(
+        () => {
+          this.pending.delete(id)
+          reject(new Error(`Remote operation timed out: ${method}`))
+        },
+        method === 'fetch' || method === 'push' ? 150_000 : 60_000,
+      )
       this.pending.set(id, { resolve: (value) => resolve(value as T), reject, timer })
       this.child!.stdin.write(JSON.stringify({ id, method, args }) + '\n')
     })

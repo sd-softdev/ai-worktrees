@@ -248,6 +248,15 @@ function registerIpc(): void {
     const worktreePath = pathSchema.parse(value)
     return workspace.serialize(() => workspace.remove(worktreePath))
   })
+  handle('git:fetch', (id) => {
+    const workspaceId = pathSchema.parse(id)
+    return workspace.serialize(() => workspace.fetch(workspaceId))
+  })
+  handle('git:push', (id, value) => {
+    const workspaceId = pathSchema.parse(id)
+    const worktreePath = pathSchema.parse(value)
+    return workspace.serialize(() => workspace.push(workspaceId, worktreePath))
+  })
   handle('preferences:save', (commonDir, value) =>
     workspace.save(pathSchema.parse(commonDir), preferencesSchema.parse(value)),
   )

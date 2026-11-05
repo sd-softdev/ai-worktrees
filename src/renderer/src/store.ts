@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { leaves, removeLeaf, replaceNode } from '../../shared/layout'
+import { orderedWorktrees } from '../../shared/worktree-order'
 import {
   defaultPreferences,
   defaultWorktreePreferences,
@@ -33,6 +34,7 @@ interface AppState {
   updatePreferences(value: Partial<WorkspacePreferences>): void
   updateWorktree(path: string, value: Partial<WorktreePreferences>): void
   selectWorktree(path: string): void
+  moveWorktree(path: string, target: string, placement: 'before' | 'after'): void
   addTerminal(path: string): void
   splitTerminal(path: string, id: string, direction: 'horizontal' | 'vertical'): void
   closeTerminal(path: string, id: string): Promise<void>
@@ -135,6 +137,17 @@ export const useApp = create<AppState>((set, get) => ({
       focusedTerminal: null,
     })
     if (!existing) get().addTerminal(path)
+  },
+  moveWorktree: (path, target, placement) => {
+    const { workspace, preferences } = get()
+    if (!workspace || path === target) return
+    const order = orderedWorktrees(workspace.worktrees, preferences.worktreeOrder).map(
+      (item) => item.path,
+    )
+    if (!order.includes(path) || !order.includes(target)) return
+    order.splice(order.indexOf(path), 1)
+    order.splice(order.indexOf(target) + (placement === 'after' ? 1 : 0), 0, path)
+    get().updatePreferences({ worktreeOrder: order })
   },
   addTerminal: (path) => {
     const preferences = get().preferences.worktrees[path] ?? defaultWorktreePreferences()

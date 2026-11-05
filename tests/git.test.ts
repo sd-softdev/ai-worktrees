@@ -6,10 +6,12 @@ import {
   addWorktree,
   changes,
   diff,
+  fetchRepository,
   git,
   history,
   inspectWorkspace,
   parseStatus,
+  pushWorktree,
   removeWorktree,
 } from '../src/main/git'
 
@@ -29,6 +31,14 @@ async function commit(cwd: string, message: string) {
   ])
 }
 
+async function addRemote(name: string) {
+  const remote = path.join(directory, `${name} remote.git`)
+  await mkdir(remote)
+  await git(remote, ['init', '--bare'])
+  await git(repo, ['remote', 'add', name, remote])
+  return remote
+}
+
 beforeEach(async () => {
   const base = path.join(os.tmpdir(), 'opencode')
   await mkdir(base, { recursive: true })
@@ -46,6 +56,99 @@ afterEach(async () => {
 })
 
 describe('Git worktree integration', () => {
+  it('fetches every remote without changing local branches or uncommitted files', async () => {
+    const origin = await addRemote('origin')
+    const upstream = await addRemote('upstream')
+    const original = await git(repo, ['rev-parse', 'HEAD'])
+    const feature = await addWorktree(await inspectWorkspace(repo), 'feat/remote', 'main')
+    await writeFile(path.join(feature, 'remote.txt'), 'remote commit\n')
+    await commit(feature, 'Remote change')
+    const remoteHead = await git(feature, ['rev-parse', 'HEAD'])
+    await git(feature, ['push', 'origin', 'HEAD:refs/heads/incoming'])
+    await git(feature, ['push', 'upstream', 'HEAD:refs/heads/another'])
+    await git(repo, ['update-ref', '-d', 'refs/remotes/origin/incoming'])
+    await git(repo, ['update-ref', '-d', 'refs/remotes/upstream/another'])
+    await writeFile(path.join(repo, 'README.md'), 'uncommitted work\n')
+    expect(await fetchRepository(repo)).toContain('origin, upstream')
+    expect(await git(repo, ['rev-parse', 'origin/incoming'])).toBe(remoteHead)
+    expect(await git(repo, ['rev-parse', 'upstream/another'])).toBe(remoteHead)
+    expect(await git(repo, ['rev-parse', 'HEAD'])).toBe(original)
+    expect(await readFile(path.join(repo, 'README.md'), 'utf8')).toBe('uncommitted work\n')
+    expect(await git(origin, ['rev-parse', 'incoming'])).toBe(remoteHead)
+    expect(await git(upstream, ['rev-parse', 'another'])).toBe(remoteHead)
+  })
+
+  it('publishes only the chosen worktree branch and sets its first upstream', async () => {
+    const origin = await addRemote('origin')
+    const feature = await addWorktree(await inspectWorkspace(repo), 'feat/publish', 'main')
+    await writeFile(path.join(feature, 'feature.txt'), 'published work\n')
+    await commit(feature, 'Publish feature')
+    await git(repo, ['config', 'push.default', 'matching'])
+    await git(repo, ['config', 'remote.origin.push', 'refs/heads/main:refs/heads/unwanted'])
+    await git(repo, ['tag', 'feat/publish'])
+    await writeFile(path.join(feature, 'uncommitted.txt'), 'stay local')
+    expect(await pushWorktree(feature)).toBe('Pushed feat/publish to origin/feat/publish.')
+    expect((await git(origin, ['for-each-ref', '--format=%(refname)'])).trim()).toBe(
+      'refs/heads/feat/publish',
+    )
+    expect(await git(origin, ['show', 'feat/publish:feature.txt'])).toBe('published work\n')
+    expect((await git(feature, ['rev-parse', '--abbrev-ref', '@{upstream}'])).trim()).toBe(
+      'origin/feat/publish',
+    )
+    expect(await readFile(path.join(feature, 'uncommitted.txt'), 'utf8')).toBe('stay local')
+    await expect(pushWorktree(feature)).resolves.toContain('Pushed feat/publish')
+  })
+
+  it('honors a differently named upstream and rejects non-fast-forward pushes', async () => {
+    const origin = await addRemote('origin')
+    const feature = await addWorktree(await inspectWorkspace(repo), 'feat/tracked', 'main')
+    await git(feature, ['push', '-u', 'origin', 'HEAD:refs/heads/review'])
+    await writeFile(path.join(feature, 'feature.txt'), 'first change')
+    await commit(feature, 'First feature change')
+    await pushWorktree(feature)
+    const published = (await git(origin, ['rev-parse', 'review'])).trim()
+    expect(published).toBe((await git(feature, ['rev-parse', 'HEAD'])).trim())
+    await git(feature, ['reset', '--hard', 'HEAD~1'])
+    await writeFile(path.join(feature, 'different.txt'), 'divergent change')
+    await commit(feature, 'Divergent feature change')
+    await expect(pushWorktree(feature)).rejects.toThrow(/rejected|failed to push/)
+    expect((await git(origin, ['rev-parse', 'review'])).trim()).toBe(published)
+  })
+
+  it('respects push-remote overrides while preserving upstream tracking in fork workflows', async () => {
+    const upstream = await addRemote('upstream')
+    const fork = await addRemote('fork')
+    const preferred = await addRemote('preferred')
+    const feature = await addWorktree(await inspectWorkspace(repo), 'feat/fork', 'main')
+    await git(feature, ['push', '-u', 'upstream', 'HEAD:refs/heads/review'])
+    const original = await git(upstream, ['rev-parse', 'review'])
+    await writeFile(path.join(feature, 'feature.txt'), 'fork change')
+    await commit(feature, 'Fork change')
+    await git(feature, ['config', 'remote.pushDefault', 'preferred'])
+    await git(feature, ['config', 'branch.feat/fork.pushRemote', 'fork'])
+    expect(await pushWorktree(feature)).toContain('fork/feat/fork')
+    expect(await git(fork, ['rev-parse', 'feat/fork'])).toBe(
+      await git(feature, ['rev-parse', 'HEAD']),
+    )
+    expect((await git(feature, ['rev-parse', '--abbrev-ref', '@{upstream}'])).trim()).toBe(
+      'upstream/review',
+    )
+    expect(await git(upstream, ['rev-parse', 'review'])).toBe(original)
+    expect(await git(preferred, ['for-each-ref'])).toBe('')
+    await git(feature, ['config', '--unset', 'branch.feat/fork.pushRemote'])
+    expect(await pushWorktree(feature)).toContain('preferred/feat/fork')
+  })
+
+  it('reports missing and ambiguous remotes and rejects detached pushes', async () => {
+    await expect(fetchRepository(repo)).rejects.toThrow('No Git remote')
+    await expect(pushWorktree(repo)).rejects.toThrow('No Git remote')
+    await addRemote('one')
+    await addRemote('two')
+    await expect(pushWorktree(repo)).rejects.toThrow('Multiple Git remotes')
+    await git(repo, ['checkout', '--detach'])
+    await expect(pushWorktree(repo)).rejects.toThrow('detached HEAD')
+  })
+
   it('discovers external worktrees when opening a linked worktree', async () => {
     const external = path.join(directory, 'external worktree')
     await git(repo, ['worktree', 'add', '-b', 'feat/external', external])

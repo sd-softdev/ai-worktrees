@@ -19,7 +19,12 @@ afterEach(async () => {
 it('loads the latest queued layout and isolates metadata by repository', async () => {
   const settings = new SettingsStore(directory)
   const first = { ...defaultPreferences(), leftWidth: 240 }
-  const last = { ...defaultPreferences(), leftWidth: 320, targetBranch: 'main' }
+  const last = {
+    ...defaultPreferences(),
+    leftWidth: 320,
+    targetBranch: 'main',
+    worktreeOrder: ['/repo-one/.worktrees/b', '/repo-one/.worktrees/a'],
+  }
   const saves = [settings.save('/repo-one/.git', first), settings.save('/repo-one/.git', last)]
   expect(await settings.load('/repo-one/.git')).toEqual(last)
   await Promise.all(saves)
@@ -30,6 +35,11 @@ it('loads the latest queued layout and isolates metadata by repository', async (
   expect(await restarted.load('/repo-one/.git')).toEqual(last)
   expect(await restarted.load('/repo-two/.git')).toEqual(first)
   expect(await restarted.lastWorkspace()).toBe('/repo-two')
+})
+
+it('migrates existing layouts to a saved worktree order without losing their settings', () => {
+  const { worktreeOrder: _order, ...previous } = { ...defaultPreferences(), leftWidth: 310 }
+  expect(preferencesSchema.parse(previous)).toEqual({ ...previous, worktreeOrder: [] })
 })
 
 it('adds optional review preferences to existing layouts without resetting them', () => {

@@ -123,6 +123,14 @@ try {
   await page.getByLabel('PR/MR provider').selectOption('auto')
   await expect(page.locator('.review-notice')).toContainText('Add a GitHub or GitLab remote')
   await page.getByRole('tab', { name: 'Changes', exact: true }).click()
+  const gitRemote = path.join(directory, 'git remote.git')
+  git('init', '--bare', gitRemote)
+  git('remote', 'add', 'origin', gitRemote)
+  git('push', 'origin', 'HEAD:refs/heads/fetched')
+  git('update-ref', '-d', 'refs/remotes/origin/fetched')
+  await page.getByRole('button', { name: 'Fetch base repository' }).click()
+  await expect(page.locator('.base-repository .git-operation-result')).toHaveText('Fetched origin.')
+  expect(git('rev-parse', 'origin/fetched')).toBe(git('rev-parse', 'HEAD'))
   await command('export SSH_SESSION=remote-alive')
   await command('printf "SSH_%s\\n" READY')
   await expect(page.locator('.terminal-workspace:visible .xterm-rows')).toContainText('SSH_READY')
@@ -133,6 +141,15 @@ try {
     'feat/remote',
   )
   await expect(page.locator('.terminal-workspace:visible .terminal-process.running')).toHaveCount(1)
+  await page.getByRole('button', { name: 'Push worktree feat/remote' }).click()
+  await expect(page.locator('.worktree-list .git-operation-result')).toHaveText(
+    'Pushed feat/remote to origin/feat/remote.',
+  )
+  expect(
+    execFileSync('git', ['-C', gitRemote, 'rev-parse', 'refs/heads/feat/remote'], {
+      encoding: 'utf8',
+    }),
+  ).toBe(git('rev-parse', 'HEAD'))
   await command('printf "REMOTE_FILE\\n" > remote.txt')
   await page.getByRole('button', { name: 'Refresh workspace', exact: true }).click()
   await expect(page.locator('.changed-file')).toContainText('remote.txt')
@@ -171,7 +188,7 @@ try {
   )
   expect(errors).toEqual([])
   console.log(
-    'SSH desktop test passed: OpenSSH config, host trust, encrypted key, remote Git, files, worktree creation, PTY, session continuity and reconnect.',
+    'SSH desktop test passed: OpenSSH config, host trust, encrypted key, remote Git fetch/push, files, worktree creation, PTY, session continuity and reconnect.',
   )
 } catch (error) {
   if (page && !page.isClosed())

@@ -48,6 +48,8 @@ const api: DesktopAPI = {
   refreshWorkspace: () => ipcRenderer.invoke('workspace:refresh'),
   createWorktree: (input) => ipcRenderer.invoke('worktree:create', input),
   removeWorktree: (path) => ipcRenderer.invoke('worktree:remove', path),
+  fetchRepository: (workspaceId) => ipcRenderer.invoke('git:fetch', workspaceId),
+  pushWorktree: (workspaceId, path) => ipcRenderer.invoke('git:push', workspaceId, path),
   savePreferences: (commonDir, preferences) =>
     ipcRenderer.invoke('preferences:save', commonDir, preferences),
   getChanges: (path) => ipcRenderer.invoke('git:changes', path),

@@ -92,6 +92,18 @@ export class WorkspaceService {
     await this.settings.save(workspaceId, preferences)
   }
 
+  async fetch(workspaceId: string): Promise<string> {
+    const workspace = this.requireWorkspace()
+    if (workspace.id !== workspaceId) throw new Error('Workspace has changed. Please retry.')
+    return this.backend.fetch(this.requireWorktree(workspace.rootPath).path)
+  }
+
+  async push(workspaceId: string, worktreePath: string): Promise<string> {
+    if (this.requireWorkspace().id !== workspaceId)
+      throw new Error('Workspace has changed. Please retry.')
+    return this.backend.push(this.requireWorktree(worktreePath).path)
+  }
+
   close(): void {
     this.terminals.closeAll()
     this.backend.close()

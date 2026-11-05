@@ -7,7 +7,7 @@ import type { ChangedFile, Commit, DiffRequest, Workspace, Worktree } from '../s
 
 const execFileAsync = promisify(execFile)
 
-export async function git(cwd: string, args: string[]): Promise<string> {
+export async function git(cwd: string, args: string[], timeout = 30_000): Promise<string> {
   try {
     const { stdout } = await execFileAsync(
       'git',
@@ -15,7 +15,7 @@ export async function git(cwd: string, args: string[]): Promise<string> {
       {
         encoding: 'utf8',
         maxBuffer: 16 * 1024 * 1024,
-        timeout: 30_000,
+        timeout,
         windowsHide: true,
         env: { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' },
       },
@@ -26,6 +26,70 @@ export async function git(cwd: string, args: string[]): Promise<string> {
     if (failure.code === 'ENOENT') throw new Error('Git was not found. Please install Git.')
     throw new Error(failure.stderr?.trim() || failure.message)
   }
+}
+
+async function remotes(cwd: string): Promise<string[]> {
+  const names = (await git(cwd, ['remote'])).trim().split(/\r?\n/).filter(Boolean)
+  if (!names.length)
+    throw new Error('No Git remote configured. Add a remote before fetching or pushing.')
+  return names
+}
+
+export async function fetchRepository(cwd: string): Promise<string> {
+  const names = await remotes(cwd)
+  await git(cwd, ['fetch', '--all', '--no-recurse-submodules'], 120_000)
+  return `Fetched ${names.join(', ')}.`
+}
+
+export async function pushWorktree(cwd: string): Promise<string> {
+  const ref = (await git(cwd, ['symbolic-ref', '--quiet', 'HEAD']).catch(() => '')).trim()
+  if (!ref.startsWith('refs/heads/'))
+    throw new Error('Cannot push a detached HEAD. Check out a branch first.')
+  const branch = ref.slice('refs/heads/'.length)
+  const names = await remotes(cwd)
+  const config = async (key: string) =>
+    (await git(cwd, ['config', '--get', key]).catch(() => '')).trim()
+  const [pushRemote, pushDefault, upstreamRemote, upstreamRef] = await Promise.all([
+    config(`branch.${branch}.pushRemote`),
+    config('remote.pushDefault'),
+    config(`branch.${branch}.remote`),
+    config(`branch.${branch}.merge`),
+  ])
+  const remote =
+    pushRemote ||
+    pushDefault ||
+    (upstreamRemote !== '.' && upstreamRemote) ||
+    (names.includes('origin') ? 'origin' : names.length === 1 ? names[0] : '')
+  if (!remote)
+    throw new Error(
+      'Multiple Git remotes are configured. Set remote.pushDefault or the branch pushRemote first.',
+    )
+  if (!names.includes(remote))
+    throw new Error(`The configured push remote "${remote}" does not exist.`)
+  const destination =
+    remote === upstreamRemote && upstreamRef ? upstreamRef : `refs/heads/${branch}`
+  if (!destination.startsWith('refs/heads/'))
+    throw new Error('The upstream must refer to a branch.')
+  await git(cwd, ['check-ref-format', destination])
+  // Explicit refspecs keep push.default/remote.push settings from publishing other
+  // branches. Preserve a separate upstream when pushing to a fork.
+  await git(
+    cwd,
+    [
+      'push',
+      '--porcelain',
+      '--no-force',
+      '--no-mirror',
+      '--no-follow-tags',
+      '--recurse-submodules=no',
+      ...(!upstreamRemote || !upstreamRef ? ['--set-upstream'] : []),
+      '--',
+      remote,
+      `refs/heads/${branch}:${destination}`,
+    ],
+    120_000,
+  )
+  return `Pushed ${branch} to ${remote}/${destination.slice('refs/heads/'.length)}.`
 }
 
 export function parseWorktrees(output: string): Worktree[] {

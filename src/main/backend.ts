@@ -9,7 +9,16 @@ import type {
   Workspace,
   Worktree,
 } from '../shared/types'
-import { addWorktree, changes, diff, history, inspectWorkspace, removeWorktree } from './git'
+import {
+  addWorktree,
+  changes,
+  diff,
+  fetchRepository,
+  history,
+  inspectWorkspace,
+  pushWorktree,
+  removeWorktree,
+} from './git'
 import { listFiles, readPreview } from './files'
 import { ReviewService } from './reviews'
 
@@ -26,6 +35,8 @@ export interface WorkspaceBackend {
   inspect(directory: string): Promise<Workspace>
   create(workspace: Workspace, branch: string, base: string): Promise<string>
   remove(workspace: Workspace, worktree: Worktree): Promise<void>
+  fetch(directory: string): Promise<string>
+  push(directory: string): Promise<string>
   changes(directory: string): Promise<ChangedFile[]>
   history(directory: string): Promise<Commit[]>
   review(directory: string, preferences: ReviewPreferences, force?: boolean): Promise<ReviewResult>
@@ -40,6 +51,8 @@ export const localBackend: WorkspaceBackend = {
   inspect: inspectWorkspace,
   create: addWorktree,
   remove: removeWorktree,
+  fetch: fetchRepository,
+  push: pushWorktree,
   changes,
   history,
   review: (directory, preferences, force) => reviews.get(directory, preferences, force),

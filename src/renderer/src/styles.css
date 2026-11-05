@@ -260,6 +260,7 @@ svg {
   background: linear-gradient(120deg, #131621, #10131b);
 }
 .repository-card {
+  flex-shrink: 0;
   padding: 16px 14px 13px;
   display: flex;
   align-items: flex-start;
@@ -308,6 +309,36 @@ svg {
 .sidebar-heading {
   padding: 14px 14px 9px;
 }
+.base-repository {
+  flex-shrink: 0;
+  padding: 0 10px 12px;
+  border-bottom: 1px solid var(--border-strong);
+  background: #0d131f;
+}
+.base-repository .sidebar-heading {
+  padding: 12px 4px 9px;
+}
+.base-repository h2 {
+  color: #a9bedf;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+.base-repository .base-worktree {
+  background: #18243860;
+  border-color: #2c3c55;
+  margin-bottom: 0;
+}
+.base-repository .base-worktree.active {
+  background: #243b5960;
+  border-color: #698dbd;
+  box-shadow: inset 3px 0 0 #83b5f9;
+}
+.base-worktree .active-badge {
+  color: #a9c9f3;
+  border-color: #698dbd75;
+  background: #83b5f916;
+}
 .sidebar-heading h2 {
   display: flex;
   gap: 9px;
@@ -329,6 +360,7 @@ svg {
 }
 .worktree-list {
   overflow-y: auto;
+  min-height: 0;
   flex: 1;
   padding: 0 10px 15px;
 }
@@ -458,19 +490,79 @@ svg {
   background: var(--yellow);
 }
 .worktree-actions {
-  position: absolute;
-  right: 7px;
-  bottom: 6px;
   display: flex;
-  opacity: 0;
-}
-.worktree-card:hover .worktree-actions,
-.worktree-card:focus-within .worktree-actions {
-  opacity: 1;
+  align-items: center;
+  gap: 3px;
+  padding: 0 7px 7px;
 }
 .worktree-actions .icon-button {
   width: 23px;
   height: 23px;
+}
+.worktree-edit {
+  margin-left: auto;
+}
+.worktree-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  color: #b9c6dd;
+  font-size: 10px;
+}
+.worktree-sync:hover:not(:disabled) {
+  background: #ffffff0b;
+  color: var(--text);
+}
+.worktree-drag-handle {
+  cursor: grab;
+}
+.worktree-drag-handle:active {
+  cursor: grabbing;
+}
+.worktree-drop-target {
+  position: relative;
+}
+.worktree-drop-target.dragging {
+  opacity: 0.45;
+}
+.worktree-drop-target.drop-before::before,
+.worktree-drop-target.drop-after::after {
+  content: '';
+  position: absolute;
+  height: 2px;
+  left: 0;
+  right: 0;
+  background: var(--purple);
+  pointer-events: none;
+  z-index: 1;
+}
+.worktree-drop-target.drop-before::before {
+  top: -3px;
+}
+.worktree-drop-target.drop-after::after {
+  bottom: -3px;
+}
+.worktree-empty {
+  margin: 12px 5px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.git-operation-result {
+  margin: 0 10px 9px;
+  color: var(--green);
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  max-height: 100px;
+  overflow-y: auto;
+  user-select: text;
+}
+.git-operation-result.error {
+  color: var(--red);
 }
 .sidebar-footer {
   display: flex;

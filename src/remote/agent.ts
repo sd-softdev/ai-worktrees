@@ -3,7 +3,16 @@ import { createInterface } from 'node:readline'
 import { readdir, realpath } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { addWorktree, changes, diff, history, inspectWorkspace, removeWorktree } from '../main/git'
+import {
+  addWorktree,
+  changes,
+  diff,
+  fetchRepository,
+  history,
+  inspectWorkspace,
+  pushWorktree,
+  removeWorktree,
+} from '../main/git'
 import { listFiles, readPreview } from '../main/files'
 import { ReviewService } from '../main/reviews'
 import { reviewPreferencesSchema } from '../main/schema'
@@ -52,6 +61,13 @@ async function dispatch(method: string, args: unknown[]): Promise<unknown> {
     }
     case 'changes':
       return changes(requireWorktree(directory).path)
+    case 'fetch': {
+      const worktree = requireWorktree(directory)
+      if (!worktree.isMain) throw new Error('Fetch must run in the base repository.')
+      return fetchRepository(worktree.path)
+    }
+    case 'push':
+      return pushWorktree(requireWorktree(directory).path)
     case 'history':
       return history(requireWorktree(directory).path)
     case 'review':

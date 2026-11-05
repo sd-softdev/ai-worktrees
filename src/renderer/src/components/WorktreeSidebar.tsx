@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import {
   Check,
   FolderGit2,
@@ -9,11 +9,16 @@ import {
   Pencil,
   LockKeyhole,
   CircleAlert,
+  Download,
+  Upload,
+  GripVertical,
+  LoaderCircle,
 } from 'lucide-react'
 import { leaves } from '../../../shared/layout'
+import { orderedWorktrees } from '../../../shared/worktree-order'
 import { defaultWorktreePreferences, type TaskStatus, type Worktree } from '../../../shared/types'
 import { ReviewBadge } from './Reviews'
-import { errorMessage, useApp } from '../store'
+import { errorMessage, refreshWorkspace, useApp } from '../store'
 import { Modal } from './Modal'
 import { APP_VERSION } from '../../../shared/version'
 
@@ -27,12 +32,23 @@ export const taskLabels: Record<TaskStatus, string> = {
 export function WorktreeSidebar() {
   const workspace = useApp((state) => state.workspace)!
   const preferences = useApp((state) => state.preferences)
-  const terminals = useApp((state) => state.terminals)
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<Worktree | null>(null)
   const [removing, setRemoving] = useState<Worktree | null>(null)
   const [removeError, setRemoveError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [dragging, setDragging] = useState<string | null>(null)
+  const [drop, setDrop] = useState<{ path: string; placement: 'before' | 'after' } | null>(null)
+  const base = workspace.worktrees.find((item) => item.isMain)
+  const worktrees = orderedWorktrees(workspace.worktrees, preferences.worktreeOrder)
+  const stopDragging = () => {
+    setDragging(null)
+    setDrop(null)
+  }
+  const requestRemoval = (worktree: Worktree) => {
+    setRemoveError(null)
+    setRemoving(worktree)
+  }
 
   const remove = async () => {
     if (!removing) return
@@ -69,9 +85,17 @@ export function WorktreeSidebar() {
           </span>
         </div>
       </div>
+      {base && (
+        <section className="base-repository" aria-label="Base repository">
+          <div className="sidebar-heading">
+            <h2>Base repository</h2>
+          </div>
+          <WorktreeCard worktree={base} onEdit={setEditing} onRemove={requestRemoval} />
+        </section>
+      )}
       <div className="sidebar-heading">
         <h2>
-          Worktrees <span className="count">{workspace.worktrees.length}</span>
+          Worktrees <span className="count">{worktrees.length}</span>
         </h2>
       </div>
       <button className="primary-button new-worktree" onClick={() => setCreating(true)}>
@@ -79,92 +103,72 @@ export function WorktreeSidebar() {
         New worktree
       </button>
       <div className="worktree-list">
-        {workspace.worktrees.map((worktree) => {
-          const settings = preferences.worktrees[worktree.path] ?? defaultWorktreePreferences()
-          const running = settings.tabs
-            .flatMap((tab) => leaves(tab.layout))
-            .filter((leaf) => terminals[leaf.id]?.state === 'running').length
-          const active = preferences.activeWorktree === worktree.path
-          return (
-            <div
-              key={worktree.path}
-              className={`worktree-card ${active ? 'active' : ''} ${worktree.missing ? 'missing' : ''}`}
-            >
-              <button
-                className="worktree-select"
-                disabled={worktree.missing}
-                onClick={() => useApp.getState().selectWorktree(worktree.path)}
-                title={worktree.path}
-                aria-current={active ? 'true' : undefined}
-              >
-                <div className="worktree-name">
-                  <FolderGit2 size={17} />
-                  <strong>{worktree.branch || 'Detached HEAD'}</strong>
-                  {active && <span className="active-badge">Active</span>}
-                </div>
-                <div className="worktree-detail">
-                  <GitBranch size={13} />
-                  <span>{worktree.isMain ? 'Main worktree' : worktree.head.slice(0, 7)}</span>
-                  {worktree.locked && <LockKeyhole size={12} />}
-                </div>
-                {settings.task && <div className="worktree-task">{settings.task}</div>}
-                <div className="worktree-meta">
-                  <span className={`task-status ${settings.status}`}>
-                    <span className="dot" />
-                    {taskLabels[settings.status]}
-                  </span>
-                  <span className="process-count">
-                    {running > 0 ? `${running} shell${running > 1 ? 's' : ''}` : 'No shells'}
-                  </span>
-                </div>
-                <div className="worktree-git">
-                  {worktree.missing ? (
-                    <>
-                      <CircleAlert size={12} />
-                      Directory missing
-                    </>
-                  ) : worktree.statusError ? (
-                    <span title={worktree.statusError}>Git status unavailable</span>
-                  ) : worktree.changedFiles > 0 ? (
-                    <>
-                      <span className="changed-dot" />
-                      {worktree.changedFiles} changed
-                    </>
-                  ) : (
-                    <>
-                      <Check size={12} />
-                      Clean
-                    </>
-                  )}
-                </div>
-                <ReviewBadge worktree={worktree} />
-              </button>
-              <div className="worktree-actions">
+        {worktrees.map((worktree, index) => (
+          <div
+            key={worktree.path}
+            className={`worktree-drop-target ${dragging === worktree.path ? 'dragging' : ''} ${drop?.path === worktree.path ? `drop-${drop.placement}` : ''}`}
+            onDragOver={(event) => {
+              if (!dragging || dragging === worktree.path) return
+              event.preventDefault()
+              event.dataTransfer.dropEffect = 'move'
+              const rect = event.currentTarget.getBoundingClientRect()
+              setDrop({
+                path: worktree.path,
+                placement: event.clientY < rect.top + rect.height / 2 ? 'before' : 'after',
+              })
+            }}
+            onDragLeave={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDrop(null)
+            }}
+            onDrop={(event) => {
+              event.preventDefault()
+              if (
+                dragging &&
+                drop?.path === worktree.path &&
+                event.dataTransfer.getData('text/plain') === dragging
+              )
+                useApp.getState().moveWorktree(dragging, worktree.path, drop.placement)
+              stopDragging()
+            }}
+          >
+            <WorktreeCard
+              worktree={worktree}
+              onEdit={setEditing}
+              onRemove={requestRemoval}
+              dragHandle={
                 <button
-                  className="icon-button"
-                  title="Edit task"
-                  aria-label={`Edit task for ${worktree.branch}`}
-                  onClick={() => setEditing(worktree)}
+                  className="icon-button worktree-drag-handle"
+                  draggable={worktrees.length > 1}
+                  aria-label={`Reorder worktree ${worktree.branch || worktree.path}`}
+                  title="Drag to reorder, or use Arrow Up / Arrow Down"
+                  onDragStart={(event) => {
+                    event.dataTransfer.effectAllowed = 'move'
+                    event.dataTransfer.setData('text/plain', worktree.path)
+                    const card = event.currentTarget.closest('.worktree-card')
+                    if (card) event.dataTransfer.setDragImage(card, 20, 20)
+                    setDragging(worktree.path)
+                  }}
+                  onDragEnd={stopDragging}
+                  onKeyDown={(event) => {
+                    if (!['ArrowUp', 'ArrowDown'].includes(event.key)) return
+                    event.preventDefault()
+                    const previous = event.key === 'ArrowUp'
+                    const target = worktrees[index + (previous ? -1 : 1)]
+                    if (target)
+                      useApp
+                        .getState()
+                        .moveWorktree(worktree.path, target.path, previous ? 'before' : 'after')
+                  }}
                 >
-                  <Pencil size={13} />
+                  <GripVertical size={14} />
                 </button>
-                {!worktree.isMain && (
-                  <button
-                    className="icon-button danger-hover"
-                    title="Remove worktree"
-                    aria-label={`Remove worktree ${worktree.branch}`}
-                    onClick={() => {
-                      setRemoveError(null)
-                      setRemoving(worktree)
-                    }}
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                )}
-              </div>
-            </div>
-          )
-        })}
+              }
+            />
+          </div>
+        ))}
+        {worktrees.length === 0 && (
+          <p className="worktree-empty">Create a worktree for your next task.</p>
+        )}
       </div>
       <div className="sidebar-footer">
         <span className="dot green" />
@@ -198,6 +202,166 @@ export function WorktreeSidebar() {
         </Modal>
       )}
     </aside>
+  )
+}
+
+function WorktreeCard({
+  worktree,
+  onEdit,
+  onRemove,
+  dragHandle,
+}: {
+  worktree: Worktree
+  onEdit: (worktree: Worktree) => void
+  onRemove: (worktree: Worktree) => void
+  dragHandle?: ReactNode
+}) {
+  const workspaceId = useApp((state) => state.workspace!.id)
+  const settings =
+    useApp((state) => state.preferences.worktrees[worktree.path]) ?? defaultWorktreePreferences()
+  const active = useApp((state) => state.preferences.activeWorktree === worktree.path)
+  const terminals = useApp((state) => state.terminals)
+  const disconnected = useApp((state) => state.remoteStatus?.state === 'disconnected')
+  const [pending, setPending] = useState(false)
+  const [result, setResult] = useState<{ error: boolean; message: string } | null>(null)
+  const running = settings.tabs
+    .flatMap((tab) => leaves(tab.layout))
+    .filter((leaf) => terminals[leaf.id]?.state === 'running').length
+  const sync = async () => {
+    if (pending) return
+    setPending(true)
+    setResult(null)
+    try {
+      const message = worktree.isMain
+        ? await window.desktop.fetchRepository(workspaceId)
+        : await window.desktop.pushWorktree(workspaceId, worktree.path)
+      setResult({ error: false, message })
+      await refreshWorkspace()
+    } catch (error) {
+      setResult({ error: true, message: errorMessage(error) })
+    } finally {
+      setPending(false)
+    }
+  }
+  return (
+    <div
+      className={`worktree-card ${worktree.isMain ? 'base-worktree' : ''} ${active ? 'active' : ''} ${worktree.missing ? 'missing' : ''}`}
+    >
+      <button
+        className="worktree-select"
+        disabled={worktree.missing}
+        onClick={() => useApp.getState().selectWorktree(worktree.path)}
+        title={worktree.path}
+        aria-current={active ? 'true' : undefined}
+      >
+        <div className="worktree-name">
+          {worktree.isMain ? <FolderGit2 size={17} /> : <GitBranch size={17} />}
+          <strong>{worktree.branch || 'Detached HEAD'}</strong>
+          {active && <span className="active-badge">Active</span>}
+        </div>
+        <div className="worktree-detail">
+          <span>{worktree.isMain ? 'Main checkout' : worktree.head.slice(0, 7)}</span>
+          {worktree.locked && <LockKeyhole size={12} />}
+        </div>
+        {settings.task && <div className="worktree-task">{settings.task}</div>}
+        <div className="worktree-meta">
+          {!worktree.isMain && (
+            <span className={`task-status ${settings.status}`}>
+              <span className="dot" />
+              {taskLabels[settings.status]}
+            </span>
+          )}
+          <span className="process-count">
+            {running > 0 ? `${running} shell${running > 1 ? 's' : ''}` : 'No shells'}
+          </span>
+        </div>
+        <div className="worktree-git">
+          {worktree.missing ? (
+            <>
+              <CircleAlert size={12} />
+              Directory missing
+            </>
+          ) : worktree.statusError ? (
+            <span title={worktree.statusError}>Git status unavailable</span>
+          ) : worktree.changedFiles > 0 ? (
+            <>
+              <span className="changed-dot" />
+              {worktree.changedFiles} changed
+            </>
+          ) : (
+            <>
+              <Check size={12} />
+              Clean
+            </>
+          )}
+        </div>
+        <ReviewBadge worktree={worktree} />
+      </button>
+      <div className="worktree-actions">
+        {dragHandle}
+        <button
+          className="worktree-sync"
+          disabled={
+            pending || worktree.missing || disconnected || (!worktree.isMain && !worktree.branch)
+          }
+          aria-label={
+            worktree.isMain
+              ? 'Fetch base repository'
+              : `Push worktree ${worktree.branch || worktree.path}`
+          }
+          title={
+            worktree.isMain
+              ? 'Fetch all remotes'
+              : worktree.branch
+                ? 'Push this branch'
+                : 'Check out a branch to push'
+          }
+          onClick={() => void sync()}
+        >
+          {pending ? (
+            <LoaderCircle size={13} className="spinning" />
+          ) : worktree.isMain ? (
+            <Download size={13} />
+          ) : (
+            <Upload size={13} />
+          )}
+          {pending
+            ? worktree.isMain
+              ? 'Fetching …'
+              : 'Pushing …'
+            : worktree.isMain
+              ? 'Fetch'
+              : 'Push'}
+        </button>
+        <button
+          className="icon-button worktree-edit"
+          title="Edit task"
+          aria-label={`Edit task for ${worktree.branch}`}
+          onClick={() => onEdit(worktree)}
+        >
+          <Pencil size={13} />
+        </button>
+        {!worktree.isMain && (
+          <button
+            className="icon-button danger-hover"
+            disabled={pending}
+            title="Remove worktree"
+            aria-label={`Remove worktree ${worktree.branch}`}
+            onClick={() => onRemove(worktree)}
+          >
+            <Trash2 size={13} />
+          </button>
+        )}
+      </div>
+      {result && (
+        <div
+          className={`git-operation-result ${result.error ? 'error' : ''}`}
+          role={result.error ? 'alert' : 'status'}
+        >
+          {result.message}
+        </div>
+      )}
+    </div>
   )
 }
 

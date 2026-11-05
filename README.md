@@ -88,12 +88,21 @@ Select **Open workspace** to open a checked-out Git repository. The app also dis
 - GitHub pull-request and GitLab merge-request badges per worktree, with review and CI status.
 - File tree with text previews and readable diffs.
 - Resizable sidebars and persistent layouts per repository.
+- A pinned base-repository section, reorderable worktrees, and one-click Git fetch/push.
 - Hosts from your OpenSSH configuration, remote folder selection, and the same worktree, Git, and file operations over SSH.
 - In-app stable-release checks, verified downloads with progress and cancellation, and platform-specific installation.
 
 Terminals start in their respective worktrees. Run regular CLI programs such as `opencode`, build commands, and development servers there. Clicking a terminal's close button terminates its process.
 
 Git status and the file tree refresh silently in the background every five seconds and whenever the window gains focus. Existing content stays visible while refreshing. Large previews are limited in size; terminal scrollback is limited to 8,000 lines.
+
+### Base repository and worktree order
+
+The **Base repository** has its own fixed section above the linked worktrees. Drag a worktree by its grip to reorder it, or focus the grip and press **Arrow Up / Arrow Down**. The order is saved per workspace and survives restarts; newly discovered worktrees are appended. Moving cards preserves active terminals and their sessions.
+
+Click **Fetch** in the base repository to fetch all remotes without merging or changing your checkout. Click **Push** on a worktree to publish its current branch. Push uses `branch.<name>.pushRemote`, then `remote.pushDefault`, then the upstream remote, falling back to `origin` or a single configured remote. The first push sets an upstream; existing upstream tracking is preserved when pushing to a fork. A push to the upstream remote respects its target branch name. Only the selected branch is pushed, without forcing updates.
+
+Operations show progress and success/errors on the card. They use Git's existing credentials; for SSH workspaces, Git runs on the remote host. Configure authentication there if needed. Detached worktrees cannot be pushed until a branch is checked out.
 
 ### Pull requests and merge requests
 

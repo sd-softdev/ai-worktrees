@@ -152,6 +152,7 @@ export interface WorkspacePreferences {
   rightWidth: number
   inspectorTab: InspectorTab
   reviews: ReviewPreferences
+  worktreeOrder: string[]
   worktrees: Record<string, WorktreePreferences>
 }
 
@@ -241,6 +242,8 @@ export interface DesktopAPI {
   refreshWorkspace(): Promise<Workspace>
   createWorktree(input: CreateWorktreeInput): Promise<OpenWorkspace>
   removeWorktree(path: string): Promise<Workspace>
+  fetchRepository(workspaceId: string): Promise<string>
+  pushWorktree(workspaceId: string, path: string): Promise<string>
   savePreferences(commonDir: string, preferences: WorkspacePreferences): Promise<void>
   getChanges(path: string): Promise<ChangedFile[]>
   getHistory(path: string): Promise<Commit[]>
@@ -267,6 +270,7 @@ export function defaultPreferences(): WorkspacePreferences {
     rightWidth: 340,
     inspectorTab: 'changes',
     reviews: { provider: 'auto', remote: '' },
+    worktreeOrder: [],
     worktrees: {},
   }
 }

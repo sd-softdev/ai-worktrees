@@ -49,6 +49,7 @@ export const preferencesSchema = z.object({
   rightWidth: z.number().min(260).max(720),
   inspectorTab: z.enum(['changes', 'history', 'files', 'reviews']),
   reviews: reviewPreferencesSchema.default({ provider: 'auto', remote: '' }),
+  worktreeOrder: z.array(pathSchema).max(10_000).default([]),
   worktrees: z.record(
     pathSchema,
     z.object({

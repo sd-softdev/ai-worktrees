@@ -111,6 +111,8 @@ try {
   }, repository)
   await page.getByRole('button', { name: 'Open Git repository' }).click()
   await expect(page.locator('.worktree-name strong')).toHaveText(['main'])
+  await expect(page.locator('.base-repository .worktree-name strong')).toHaveText('main')
+  await expect(page.locator('.worktree-list .worktree-card')).toHaveCount(0)
   await expect(page.locator('.terminal-process.running')).toHaveCount(1)
   await expect(page.locator('.clean-state')).toBeVisible()
   await page.getByRole('tab', { name: 'PR / MR' }).click()
@@ -269,6 +271,21 @@ try {
     ipcMain.handle('git:changes', globalThis.inspectorProbe.original)
     delete globalThis.inspectorProbe
   })
+  await page.getByRole('button', { name: 'Fetch base repository' }).click()
+  await expect(page.locator('.base-repository .git-operation-result.error')).toContainText(
+    'No Git remote',
+  )
+  await expect(page.locator('.terminal-process.running')).toHaveCount(1)
+  const remote = path.join(directory, 'origin remote.git')
+  git('init', '--bare', remote)
+  git('remote', 'add', 'origin', remote)
+  git('push', 'origin', 'HEAD:refs/heads/fetched')
+  git('update-ref', '-d', 'refs/remotes/origin/fetched')
+  const originalHead = git('rev-parse', 'HEAD')
+  await page.getByRole('button', { name: 'Fetch base repository' }).click()
+  await expect(page.locator('.base-repository .git-operation-result')).toHaveText('Fetched origin.')
+  expect(git('rev-parse', 'origin/fetched')).toBe(originalHead)
+  expect(git('rev-parse', 'HEAD')).toBe(originalHead)
   await terminalCommand(probe('ready', 'MAIN'))
   await expect(page.locator('.terminal-workspace:visible .xterm-rows')).toContainText('MAIN_READY')
   await terminalCommand(setVariable('WORKTREE_SESSION', 'main-alive'))
@@ -302,6 +319,60 @@ try {
   await terminalCommand(probe('feature'))
   await expect(page.locator('.terminal-workspace:visible .xterm-rows')).toContainText(
     'FEATURE_READY',
+  )
+  await terminalCommand(setVariable('FEATURE_SESSION', 'still-alive'))
+  await page.getByRole('button', { name: 'Push worktree feat/auth-ui' }).click()
+  await expect(page.locator('.worktree-list .git-operation-result')).toHaveText(
+    'Pushed feat/auth-ui to origin/feat/auth-ui.',
+  )
+  expect(
+    execFileSync('git', ['-C', remote, 'rev-parse', 'refs/heads/feat/auth-ui'], {
+      encoding: 'utf8',
+    }),
+  ).toBe(originalHead)
+  git('remote', 'set-url', '--push', 'origin', path.join(directory, 'missing remote.git'))
+  await page.getByRole('button', { name: 'Push worktree feat/auth-ui' }).click()
+  await expect(page.locator('.worktree-list .git-operation-result.error')).toContainText(
+    'Could not read from remote repository',
+  )
+  git('config', '--unset', 'remote.origin.pushurl')
+  await page.getByRole('button', { name: 'Push worktree feat/auth-ui' }).click()
+  await expect(page.locator('.worktree-list .git-operation-result.error')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Push worktree feat/auth-ui' })).toBeEnabled()
+
+  git('worktree', 'add', '-b', 'feat/second', path.join(directory, 'second worktree'))
+  await page.getByRole('button', { name: 'Refresh workspace', exact: true }).click()
+  await expect(page.locator('.worktree-list .worktree-name strong')).toHaveText([
+    'feat/auth-ui',
+    'feat/second',
+  ])
+  const firstCard = page.locator('.worktree-drop-target').filter({ hasText: 'feat/auth-ui' })
+  await page
+    .getByRole('button', { name: 'Reorder worktree feat/second' })
+    .dragTo(firstCard, { targetPosition: { x: 80, y: 5 } })
+  await expect(page.locator('.worktree-list .worktree-name strong')).toHaveText([
+    'feat/second',
+    'feat/auth-ui',
+  ])
+  const secondGrip = page.getByRole('button', { name: 'Reorder worktree feat/second' })
+  await secondGrip.focus()
+  await page.keyboard.press('ArrowDown')
+  await expect(page.locator('.worktree-list .worktree-name strong')).toHaveText([
+    'feat/auth-ui',
+    'feat/second',
+  ])
+  await page.keyboard.press('ArrowUp')
+  await expect(page.locator('.worktree-list .worktree-name strong')).toHaveText([
+    'feat/second',
+    'feat/auth-ui',
+  ])
+  await expect(page.locator('.base-repository .worktree-name strong')).toHaveText('main')
+  await expect(page.locator('.worktree-card.active .worktree-name strong')).toHaveText(
+    'feat/auth-ui',
+  )
+  await terminalCommand(probe('session', 'FEATURE_SESSION', 'ORDER_SESSION'))
+  await expect(page.locator('.terminal-workspace:visible .xterm-rows')).toContainText(
+    'ORDER_SESSION=still-alive',
   )
 
   await page.getByRole('button', { name: 'Split terminal side by side' }).click()
@@ -389,6 +460,10 @@ try {
   await app.close()
   app = null
   await launch()
+  await expect(page.locator('.worktree-list .worktree-name strong')).toHaveText([
+    'feat/second',
+    'feat/auth-ui',
+  ])
   await expect(page.locator('.worktree-card.active .worktree-name strong')).toHaveText(
     'feat/auth-ui',
   )
@@ -399,6 +474,10 @@ try {
     page.locator('.terminal-workspace:visible .terminal-pane').first().locator('.xterm-rows'),
   ).toContainText('RESTART_READY')
   expect(errors).toEqual([])
+
+  await page.getByRole('button', { name: 'Remove worktree feat/second' }).click()
+  await page.getByRole('button', { name: 'Remove worktree', exact: true }).click()
+  await expect(page.locator('.worktree-card')).toHaveCount(2)
 
   // Closing both panes permits removal, but the uncommitted file still protects it.
   await page.getByRole('button', { name: 'Close terminal', exact: true }).first().click()
@@ -434,7 +513,7 @@ try {
   expect(git('show', 'feat/auth-ui:src/auth.ts')).toContain('login = true')
   expect(errors).toEqual([])
   console.log(
-    'Desktop smoke test passed: PTY, full-screen TUI, flow control, nested splits, shell restart, worktree isolation, session continuity, Git views, persistence and safe removal.',
+    'Desktop smoke test passed: PTY, full-screen TUI, flow control, nested splits, shell restart, worktree isolation, drag-and-drop order, fetch/push, session continuity, Git views, persistence and safe removal.',
   )
 } catch (error) {
   if (page && !page.isClosed())
