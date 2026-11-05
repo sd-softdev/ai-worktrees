@@ -1,4 +1,14 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
+import {
+  app,
+  autoUpdater as nativeUpdater,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  net,
+  shell,
+} from 'electron'
+import { autoUpdater } from 'electron-updater'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
@@ -9,6 +19,7 @@ import { configuredHosts } from './ssh/config'
 import { SshAuthentication } from './ssh/auth'
 import { SshConnection } from './ssh/connection'
 import { SshBackend } from './ssh/backend'
+import { UpdateService } from './updates'
 import type { SshConnectInput } from '../shared/types'
 import {
   createWorktreeSchema,
@@ -30,6 +41,7 @@ app.commandLine.appendSwitch('lang', 'en-US')
 let window: BrowserWindow | null = null
 let closing = false
 let confirmingClose = false
+let updates: UpdateService
 const settings = new SettingsStore(path.join(app.getPath('userData'), 'workspaces'))
 const terminals = new TerminalService((event) => {
   if (window && !window.isDestroyed()) window.webContents.send('terminal:event', event)
@@ -113,6 +125,40 @@ async function confirmWorkspaceSwitch(): Promise<boolean> {
 }
 
 function registerIpc(): void {
+  handle('updates:state', () => updates.snapshot)
+  handle('updates:check', () => updates.check())
+  handle('updates:download', () => updates.download())
+  handle('updates:cancel', () => updates.cancel())
+  handle('updates:install', () =>
+    workspace.serialize(async () => {
+      if (closing || confirmingClose || updates.snapshot.status !== 'downloaded')
+        return updates.snapshot
+      confirmingClose = true
+      try {
+        if (terminals.hasRunning() && window) {
+          const result = await dialog.showMessageBox(window, {
+            type: 'question',
+            message: 'Install update and close Agent Workspace?',
+            detail:
+              'Running local and SSH terminals will be stopped. Your workspace layout will be saved and restored with new shells.',
+            buttons: ['Cancel', 'Install update'],
+            defaultId: 0,
+            cancelId: 0,
+          })
+          if (result.response !== 1) return updates.snapshot
+        }
+        await settings.flush()
+        const state = await updates.install()
+        if (state.status === 'installing' && state.installation === 'dmg') {
+          closing = true
+          app.quit()
+        }
+        return state
+      } finally {
+        confirmingClose = false
+      }
+    }),
+  )
   handle('workspace:bootstrap', () =>
     workspace.serialize(async () => {
       if (workspace.current) {
@@ -334,6 +380,22 @@ else {
     window?.focus()
   })
   void app.whenReady().then(() => {
+    updates = new UpdateService(
+      autoUpdater,
+      {
+        version: app.getVersion(),
+        packaged: app.isPackaged,
+        platform: process.platform,
+        arch: process.arch,
+        directory: path.join(app.getPath('userData'), 'updates'),
+        fetch: (url, options) => net.fetch(url instanceof URL ? url.toString() : url, options),
+        openFile: (filename) => shell.openPath(filename),
+      },
+      (state) => send('updates:state', state),
+    )
+    nativeUpdater.on('before-quit-for-update', () => {
+      closing = true
+    })
     registerIpc()
     const template: Electron.MenuItemConstructorOptions[] = [
       ...(process.platform === 'darwin' ? [{ role: 'appMenu' as const }] : []),
@@ -352,12 +414,21 @@ else {
       { role: 'editMenu' },
       { role: 'viewMenu' },
       { role: 'windowMenu' },
+      {
+        label: 'Help',
+        submenu: [{ label: 'Check for updates …', click: () => send('updates:open', null) }],
+      },
     ]
     Menu.setApplicationMenu(Menu.buildFromTemplate(template))
     createWindow()
+    if (app.isPackaged && process.env.AGENT_WORKSPACE_DISABLE_UPDATE_CHECK !== '1') {
+      setTimeout(() => void updates.check(), 15_000).unref()
+      setInterval(() => void updates.check(), 6 * 60 * 60_000).unref()
+    }
   })
   app.on('window-all-closed', () => app.quit())
   app.on('will-quit', () => {
+    updates?.cancel()
     workspace.close()
     pendingRemote?.close()
     authentication.dispose()

@@ -1374,3 +1374,57 @@ svg {
 .remote-disconnected .secondary-button {
   margin-left: auto;
 }
+.update-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.update-button:hover,
+.update-available {
+  color: #d6b9ff;
+  background: #a475ff1a;
+}
+.update-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.update-content p {
+  margin: 0;
+}
+.update-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #e4d2ff;
+}
+.update-status svg {
+  flex-shrink: 0;
+}
+.update-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.update-progress progress {
+  width: 100%;
+  accent-color: #a475ff;
+}
+.update-content .inline-error {
+  white-space: pre-wrap;
+  max-height: 160px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+.update-actions {
+  flex-wrap: wrap;
+}

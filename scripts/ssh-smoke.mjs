@@ -51,6 +51,7 @@ try {
     ...process.env,
     AGENT_WORKSPACE_USER_DATA: path.join(directory, 'profile'),
     AGENT_WORKSPACE_SSH_CONFIG: server.config,
+    AGENT_WORKSPACE_DISABLE_UPDATE_CHECK: '1',
   }
   delete env.ELECTRON_RUN_AS_NODE
   delete env.ELECTRON_RENDERER_URL

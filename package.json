@@ -1,6 +1,6 @@
 {
   "name": "agent-workspace",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "A terminal-first workspace for parallel development with Git worktrees.",
   "main": "out/main/index.js",
   "author": {
@@ -28,6 +28,7 @@
     "test:packaged": "node scripts/smoke.mjs --packaged",
     "test:ssh": "node scripts/ssh-smoke.mjs --packaged",
     "test:ssh-client": "node scripts/ssh-client-smoke.mjs",
+    "test:updates": "node scripts/update-smoke.mjs",
     "test:install": "node scripts/install-test.mjs",
     "postinstall": "electron-builder install-app-deps",
     "pack": "npm run build && electron-builder --dir --publish never",
@@ -42,6 +43,7 @@
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-web-links": "^0.12.0",
     "@xterm/xterm": "^6.0.0",
+    "electron-updater": "^6.8.11",
     "lucide-react": "^1.68.0",
     "node-pty": "^1.1.0",
     "react": "^19.3.1",

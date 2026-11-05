@@ -92,6 +92,16 @@ jobs:
         if: runner.os == 'Windows'
         run: npm run test:ssh-client
 
+      - name: Test in-app updates
+        if: runner.os != 'Linux'
+        run: npm run test:updates
+
+      - name: Test in-app updates on Linux
+        if: runner.os == 'Linux'
+        env:
+          AGENT_WORKSPACE_SMOKE_NO_SANDBOX: '1'
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1600x1000x24" npm run test:updates
+
       - name: Test turnkey installer and installed application
         if: runner.os != 'Linux'
         run: npm run test:install
@@ -111,6 +121,7 @@ jobs:
             dist/*.exe
             dist/*.AppImage
             dist/*.deb
+            dist/*.blockmap
           if-no-files-found: error
           compression-level: 0
           retention-days: 7
@@ -133,6 +144,9 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '26'
       - uses: actions/download-artifact@v8
         with:
           pattern: installers-*
@@ -141,8 +155,9 @@ jobs:
       - name: Include installers and calculate checksums
         run: |
           cp install.sh install.ps1 release/
+          node scripts/update-metadata.mjs release
           cd release
-          sha256sum *.dmg *.exe *.AppImage *.deb install.sh install.ps1 > SHA256SUMS
+          sha256sum *.dmg *.exe *.AppImage *.deb *.yml *.blockmap install.sh install.ps1 > SHA256SUMS
       - name: Publish verified installers
         env:
           GH_TOKEN: ${{ github.token }}

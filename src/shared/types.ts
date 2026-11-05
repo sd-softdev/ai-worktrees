@@ -1,6 +1,27 @@
 export type TaskStatus = 'todo' | 'working' | 'review' | 'done'
 export type InspectorTab = 'changes' | 'history' | 'files'
 
+export interface UpdateState {
+  status:
+    | 'idle'
+    | 'checking'
+    | 'available'
+    | 'up-to-date'
+    | 'downloading'
+    | 'downloaded'
+    | 'installing'
+    | 'error'
+    | 'unsupported'
+  currentVersion: string
+  installation: 'restart' | 'dmg'
+  version?: string
+  progress?: number
+  transferred?: number
+  total?: number
+  checkedAt?: string
+  error?: string
+}
+
 export interface Worktree {
   path: string
   branch: string | null
@@ -165,6 +186,13 @@ export type DiffRequest =
 
 export interface DesktopAPI {
   platform: string
+  updateState(): Promise<UpdateState>
+  checkForUpdates(): Promise<UpdateState>
+  downloadUpdate(): Promise<UpdateState>
+  cancelUpdate(): Promise<void>
+  installUpdate(): Promise<UpdateState>
+  onUpdateState(listener: (state: UpdateState) => void): () => void
+  onUpdateRequested(listener: () => void): () => void
   bootstrap(): Promise<OpenWorkspace | null>
   openWorkspace(): Promise<OpenWorkspace | null>
   sshHosts(): Promise<SshHost[]>

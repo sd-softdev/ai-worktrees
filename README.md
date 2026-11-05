@@ -23,7 +23,7 @@ curl -fsSL https://github.com/sd-softdev/ai-worktrees/releases/latest/download/i
 Pass options using `bash -s --`, for example to install the portable Linux package:
 
 ```bash
-curl -fsSL https://github.com/sd-softdev/ai-worktrees/releases/latest/download/install.sh | bash -s -- --portable --version v0.2.1
+curl -fsSL https://github.com/sd-softdev/ai-worktrees/releases/latest/download/install.sh | bash -s -- --portable --version v0.3.0
 ```
 
 Use `--install-dir DIRECTORY` to choose the destination for macOS or AppImage installations. `--dry-run` displays the selected package. To update, close the app and run the script again.
@@ -36,19 +36,31 @@ Invoke-WebRequest -UseBasicParsing 'https://github.com/sd-softdev/ai-worktrees/r
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installer
 ```
 
-Installs using NSIS to `%LOCALAPPDATA%\Programs\Agent Workspace`. Supports Windows PowerShell 5.1 and PowerShell 7. Optional parameters include `-Version v0.2.1`, `-InstallDirectory 'C:\Apps\Agent Workspace'`, and `-DryRun`.
+Installs using NSIS to `%LOCALAPPDATA%\Programs\Agent Workspace`. Supports Windows PowerShell 5.1 and PowerShell 7. Optional parameters include `-Version v0.3.0`, `-InstallDirectory 'C:\Apps\Agent Workspace'`, and `-DryRun`.
 
 ### Offline installation
 
 Download the appropriate package, `SHA256SUMS`, and installation script from the same release:
 
 ```bash
-bash install.sh --version v0.2.1 --asset ./agent-workspace-0.2.1-mac-arm64.dmg --checksums ./SHA256SUMS
+bash install.sh --version v0.3.0 --asset ./agent-workspace-0.3.0-mac-arm64.dmg --checksums ./SHA256SUMS
 ```
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Version v0.2.1 -InstallerPath .\agent-workspace-0.2.1-win-x64.exe -ChecksumPath .\SHA256SUMS
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Version v0.3.0 -InstallerPath .\agent-workspace-0.3.0-win-x64.exe -ChecksumPath .\SHA256SUMS
 ```
+
+### In-app updates (from v0.3.0)
+
+Click the version button in the bottom-right status bar or choose **Help → Check for updates**. Installed builds also check the latest stable GitHub release shortly after launch and every six hours. A new version is indicated in the status bar without interrupting your work.
+
+1. Select **Download update**. Downloads show progress, can be cancelled, and are verified using SHA-512 before installation. Network failures or checksum errors can be retried.
+2. **Windows (NSIS) / Linux (AppImage or DEB):** choose **Restart & install**. The native updater installs the package; DEB installations may request administrator authentication through the desktop environment.
+3. **macOS:** choose **Open installer & quit**, then replace the app from the downloaded DMG in its current installation folder. Current macOS builds are unsigned, so installation uses the DMG instead of automatic replacement.
+
+Downloads and installation require an explicit action. Quitting normally does not install a downloaded update. If terminals are running, installation asks for confirmation before closing them. Workspace layouts are saved; shells start fresh after relaunch. Development builds and unpackaged Linux executables do not self-update.
+
+**Upgrading from v0.2.1 or earlier:** install v0.3.0 once using the installer or installation script above. Older versions do not contain the update interface.
 
 ## Development setup
 
@@ -76,6 +88,7 @@ Select **Open workspace** to open a checked-out Git repository. The app also dis
 - File tree with text previews and readable diffs.
 - Resizable sidebars and persistent layouts per repository.
 - Hosts from your OpenSSH configuration, remote folder selection, and the same worktree, Git, and file operations over SSH.
+- In-app stable-release checks, verified downloads with progress and cancellation, and platform-specific installation.
 
 Terminals start in their respective worktrees. Run regular CLI programs such as `opencode`, build commands, and development servers there. Clicking a terminal's close button terminates its process.
 
@@ -135,6 +148,7 @@ npm run dist:linux
 npm run test:packaged
 npm run test:ssh
 npm run test:ssh-client
+npm run test:updates
 npm run test:install
 ```
 
@@ -145,6 +159,7 @@ npm run test:install
 - `test:ssh` starts an isolated local OpenSSH server and checks host trust, encrypted keys, remote Git/file/worktree operations, terminal continuity, and reconnect. It requires `sshd` and a previously packaged app. Linux CI runs it with `AGENT_WORKSPACE_TEST_SSHD_SUDO=1`.
 - `test:ssh-client` launches the real OpenSSH client through the app's terminal service using Electron's native PTY runtime. Windows CI also checks executable lookup in a final PATH entry containing spaces.
 - `test:install` requires a previously built installer for the current version. It checks rejection of invalid checksums, installs to a temporary destination (system-wide for DEB), and runs the installed app through the desktop test. Windows/Linux require an isolated CI runner for this test.
+- `test:updates` uses the real packaged app, updater, and a local release server to test version checks, corrupt-download rejection, cancellation, retry, terminal confirmation, and installer handoff. The OS installation and quit are intercepted in this test; native installers are exercised by `test:install`, which also runs update tests against the installed applications, including both Linux formats.
 - macOS and Windows builds are currently unsigned; macOS builds are not notarized.
 - `node-pty` is built for the Electron version during dependency installation. After upgrading Electron, run `npm run postinstall` if needed.
 
@@ -154,7 +169,7 @@ npm run test:install
 | `npm run dist:win`   | Windows x64                 | `.exe` (NSIS installer) |
 | `npm run dist:linux` | Linux x64                   | `.AppImage`, `.deb`     |
 
-Examples: `dist/agent-workspace-0.2.1-linux-x86_64.AppImage` and `dist/agent-workspace-0.2.1-linux-amd64.deb`. Both Linux packages target x64. AppImages may additionally require FUSE 2 (`libfuse2t64` on Ubuntu 24.04). Make the AppImage executable before launching it.
+Examples: `dist/agent-workspace-0.3.0-linux-x86_64.AppImage` and `dist/agent-workspace-0.3.0-linux-amd64.deb`. Both Linux packages target x64. AppImages may additionally require FUSE 2 (`libfuse2t64` on Ubuntu 24.04). Make the AppImage executable before launching it.
 
 Set `AGENT_WORKSPACE_EXECUTABLE` to test a different app executable. Use Xvfb for headless Linux tests:
 
@@ -175,7 +190,7 @@ The [desktop pipeline](https://github.com/sd-softdev/ai-worktrees/actions/workfl
 
 Each job runs `npm ci`, checks formatting, runs integration tests, builds the installers, and launches the **packaged app** in the desktop smoke test. It then tests the turnkey scripts, including actual installation and launch of the installed app. Linux also runs the SSH end-to-end test. Installers are uploaded as `installers-*` artifacts only after the tests pass; screenshots and logs are available as `diagnostics-*`. Artifacts are retained for seven days.
 
-A tag such as `v0.2.1`, matching the version in `package.json`, automatically publishes a [GitHub release](https://github.com/sd-softdev/ai-worktrees/releases) after all four builds succeed. Releases include the packages, `install.sh`, `install.ps1`, and `SHA256SUMS`. Regular branch builds produce workflow artifacts.
+A tag such as `v0.3.0`, matching the version in `package.json`, automatically publishes a [GitHub release](https://github.com/sd-softdev/ai-worktrees/releases) after all four builds succeed. Releases include the packages, `install.sh`, `install.ps1`, and `SHA256SUMS`. Update manifests (`latest.yml`, `latest-linux.yml`, and `latest-mac.yml`) are assembled from the tested artifacts; the macOS manifest includes both architectures. Regular branch builds produce workflow artifacts.
 
 ## Project structure
 

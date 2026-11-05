@@ -10,6 +10,10 @@ asarUnpack:
   - node_modules/node-pty/**/*
   - out/main/askpass.js
 icon: build/icon.png
+publish:
+  provider: github
+  owner: sd-softdev
+  repo: ai-worktrees
 mac:
   category: public.app-category.developer-tools
   target:

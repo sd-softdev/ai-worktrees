@@ -88,6 +88,13 @@ try {
     timeout: 180_000,
   })
   assert.equal(smoke.status, 0, 'Installed desktop application smoke test failed')
+  const updates = spawnSync(process.execPath, ['scripts/update-smoke.mjs'], {
+    cwd: project,
+    stdio: 'inherit',
+    env: { ...process.env, AGENT_WORKSPACE_EXECUTABLE: executable },
+    timeout: 180_000,
+  })
+  assert.equal(updates.status, 0, 'Installed application update test failed')
   if (process.platform === 'linux') {
     const portableName = `agent-workspace-${version}-linux-x86_64.AppImage`
     const portableAsset = path.join(project, 'dist', portableName)
@@ -132,6 +139,17 @@ try {
       },
     })
     assert.equal(smoke.status, 0, 'Installed AppImage smoke test failed')
+    const updates = spawnSync(process.execPath, ['scripts/update-smoke.mjs'], {
+      cwd: project,
+      stdio: 'inherit',
+      timeout: 180_000,
+      env: {
+        ...process.env,
+        AGENT_WORKSPACE_EXECUTABLE: executable,
+        APPIMAGE_EXTRACT_AND_RUN: '1',
+      },
+    })
+    assert.equal(updates.status, 0, 'Installed AppImage update test failed')
     console.log(
       'Portable installer test passed: AppImage installation, launcher, desktop entry and installed-app smoke test.',
     )

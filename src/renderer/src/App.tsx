@@ -20,6 +20,7 @@ import { TerminalWorkspace } from './components/Terminals'
 import { Inspector } from './components/Inspector'
 import { ResizeHandle } from './components/ResizeHandle'
 import { SshConnectionDialog, SshPrompts } from './components/SshConnection'
+import { Updates } from './components/Updates'
 
 export function App() {
   const workspace = useApp((state) => state.workspace)
@@ -303,6 +304,8 @@ export function App() {
           )}
         </div>
         <div>
+          <Updates />
+          <span className="status-divider" />
           <TerminalSquare size={13} />
           <span>Shells</span>
           <span className={`dot ${running ? 'green' : ''}`} />

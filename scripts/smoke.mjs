@@ -69,7 +69,11 @@ const errors = []
 const logs = []
 
 async function launch() {
-  const env = { ...process.env, AGENT_WORKSPACE_USER_DATA: profile }
+  const env = {
+    ...process.env,
+    AGENT_WORKSPACE_USER_DATA: profile,
+    AGENT_WORKSPACE_DISABLE_UPDATE_CHECK: '1',
+  }
   delete env.ELECTRON_RUN_AS_NODE
   delete env.ELECTRON_RENDERER_URL
   delete env.AGENT_WORKSPACE_OPEN

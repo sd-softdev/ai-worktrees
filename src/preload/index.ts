@@ -3,6 +3,22 @@ import type { DesktopAPI, SequencedTerminalEvent } from '../shared/types'
 
 const api: DesktopAPI = {
   platform: process.platform,
+  updateState: () => ipcRenderer.invoke('updates:state'),
+  checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  downloadUpdate: () => ipcRenderer.invoke('updates:download'),
+  cancelUpdate: () => ipcRenderer.invoke('updates:cancel'),
+  installUpdate: () => ipcRenderer.invoke('updates:install'),
+  onUpdateState: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, value: Parameters<typeof listener>[0]) =>
+      listener(value)
+    ipcRenderer.on('updates:state', handler)
+    return () => ipcRenderer.removeListener('updates:state', handler)
+  },
+  onUpdateRequested: (listener) => {
+    const handler = () => listener()
+    ipcRenderer.on('updates:open', handler)
+    return () => ipcRenderer.removeListener('updates:open', handler)
+  },
   bootstrap: () => ipcRenderer.invoke('workspace:bootstrap'),
   openWorkspace: () => ipcRenderer.invoke('workspace:open'),
   sshHosts: () => ipcRenderer.invoke('ssh:hosts'),
