@@ -9,6 +9,7 @@ import {
   FolderOpen,
   GitCompareArrows,
   GitCommitHorizontal,
+  GitPullRequest,
   History,
   Link,
   RefreshCw,
@@ -22,6 +23,7 @@ import type {
 } from '../../../shared/types'
 import { errorMessage, useApp } from '../store'
 import { Modal } from './Modal'
+import { Reviews } from './Reviews'
 
 interface Preview {
   title: string
@@ -59,7 +61,7 @@ export function Inspector() {
 
   useEffect(() => {
     let cancelled = false
-    if (tab === 'files') {
+    if (tab === 'files' || tab === 'reviews') {
       setLoading(false)
       return
     }
@@ -161,6 +163,7 @@ export function Inspector() {
     { id: 'changes', label: 'Changes', icon: GitCompareArrows },
     { id: 'history', label: 'History', icon: History },
     { id: 'files', label: 'Files', icon: Folder },
+    { id: 'reviews', label: 'PR / MR', icon: GitPullRequest },
   ]
 
   return (
@@ -316,7 +319,13 @@ export function Inspector() {
             />
           </>
         )}
-        {loading && (
+        {tab === 'reviews' && (
+          <Reviews
+            key={worktree}
+            worktree={workspace.worktrees.find((item) => item.path === worktree)!}
+          />
+        )}
+        {loading && (tab === 'changes' || tab === 'history') && (
           <div className="loading-indicator">
             <RefreshCw size={13} className="spinning" />
             Loading …

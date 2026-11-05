@@ -37,12 +37,18 @@ const layoutSchema: z.ZodType<TerminalLayout> = z.lazy(() =>
   ]),
 )
 
+export const reviewPreferencesSchema = z.object({
+  provider: z.enum(['auto', 'off', 'github', 'gitlab']),
+  remote: z.string().max(300),
+})
+
 export const preferencesSchema = z.object({
   activeWorktree: pathSchema.nullable(),
   targetBranch: z.string().max(300),
   leftWidth: z.number().min(190).max(480),
   rightWidth: z.number().min(260).max(720),
-  inspectorTab: z.enum(['changes', 'history', 'files']),
+  inspectorTab: z.enum(['changes', 'history', 'files', 'reviews']),
+  reviews: reviewPreferencesSchema.default({ provider: 'auto', remote: '' }),
   worktrees: z.record(
     pathSchema,
     z.object({

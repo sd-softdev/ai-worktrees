@@ -5,9 +5,12 @@ import os from 'node:os'
 import path from 'node:path'
 import { addWorktree, changes, diff, history, inspectWorkspace, removeWorktree } from '../main/git'
 import { listFiles, readPreview } from '../main/files'
+import { ReviewService } from '../main/reviews'
+import { reviewPreferencesSchema } from '../main/schema'
 import type { DiffRequest, Workspace } from '../shared/types'
 
 let workspace: Workspace | null = null
+const reviews = new ReviewService()
 const resolveDirectory = (directory: string) =>
   directory === '~' || !directory
     ? os.homedir()
@@ -51,6 +54,12 @@ async function dispatch(method: string, args: unknown[]): Promise<unknown> {
       return changes(requireWorktree(directory).path)
     case 'history':
       return history(requireWorktree(directory).path)
+    case 'review':
+      return reviews.get(
+        requireWorktree(directory).path,
+        reviewPreferencesSchema.parse(args[1]),
+        args[2] === true,
+      )
     case 'diff':
       return diff(requireWorktree(directory).path, args[1] as DiffRequest)
     case 'listFiles':

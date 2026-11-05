@@ -4,6 +4,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, expect, it } from 'vitest'
 import { SettingsStore } from '../src/main/settings'
 import { defaultPreferences } from '../src/shared/types'
+import { preferencesSchema } from '../src/main/schema'
 
 let directory: string
 beforeEach(async () => {
@@ -29,4 +30,16 @@ it('loads the latest queued layout and isolates metadata by repository', async (
   expect(await restarted.load('/repo-one/.git')).toEqual(last)
   expect(await restarted.load('/repo-two/.git')).toEqual(first)
   expect(await restarted.lastWorkspace()).toBe('/repo-two')
+})
+
+it('adds optional review preferences to existing layouts without resetting them', () => {
+  const { reviews: _reviews, ...previous } = {
+    ...defaultPreferences(),
+    leftWidth: 315,
+    targetBranch: 'develop',
+  }
+  expect(preferencesSchema.parse(previous)).toEqual({
+    ...previous,
+    reviews: { provider: 'auto', remote: '' },
+  })
 })

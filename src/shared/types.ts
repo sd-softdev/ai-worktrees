@@ -1,5 +1,37 @@
 export type TaskStatus = 'todo' | 'working' | 'review' | 'done'
-export type InspectorTab = 'changes' | 'history' | 'files'
+export type InspectorTab = 'changes' | 'history' | 'files' | 'reviews'
+
+export type ReviewProvider = 'github' | 'gitlab'
+
+export interface ReviewPreferences {
+  provider: 'auto' | 'off' | ReviewProvider
+  remote: string
+}
+
+export interface ReviewRequest {
+  number: number
+  title: string
+  url: string
+  state: 'open' | 'closed' | 'merged'
+  draft: boolean
+  sourceBranch: string
+  targetBranch: string
+  review: 'approved' | 'changes-requested' | 'required' | 'unknown'
+  checks: 'passed' | 'failed' | 'pending' | 'none' | 'unknown'
+}
+
+export interface ReviewResult {
+  status: 'ready' | 'disabled' | 'unsupported' | 'unavailable'
+  reason?: 'missing-cli' | 'authentication' | 'request-failed'
+  provider?: ReviewProvider
+  host?: string
+  repository?: string
+  remote?: string
+  remotes: string[]
+  request?: ReviewRequest
+  message?: string
+  checkedAt?: string
+}
 
 export interface UpdateState {
   status:
@@ -119,6 +151,7 @@ export interface WorkspacePreferences {
   leftWidth: number
   rightWidth: number
   inspectorTab: InspectorTab
+  reviews: ReviewPreferences
   worktrees: Record<string, WorktreePreferences>
 }
 
@@ -211,6 +244,7 @@ export interface DesktopAPI {
   savePreferences(commonDir: string, preferences: WorkspacePreferences): Promise<void>
   getChanges(path: string): Promise<ChangedFile[]>
   getHistory(path: string): Promise<Commit[]>
+  getReview(path: string, preferences: ReviewPreferences, force?: boolean): Promise<ReviewResult>
   getDiff(path: string, request: DiffRequest): Promise<string>
   listFiles(worktree: string, relativePath: string): Promise<FileEntry[]>
   readFile(worktree: string, relativePath: string): Promise<FilePreview>
@@ -232,6 +266,7 @@ export function defaultPreferences(): WorkspacePreferences {
     leftWidth: 260,
     rightWidth: 340,
     inspectorTab: 'changes',
+    reviews: { provider: 'auto', remote: '' },
     worktrees: {},
   }
 }

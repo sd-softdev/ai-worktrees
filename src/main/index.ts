@@ -28,6 +28,7 @@ import {
   pathSchema,
   preferencesSchema,
   relativePathSchema,
+  reviewPreferencesSchema,
   sizeSchema,
   sshConnectSchema,
 } from './schema'
@@ -255,6 +256,13 @@ function registerIpc(): void {
   )
   handle('git:history', (value) =>
     workspace.backend.history(workspace.requireWorktree(pathSchema.parse(value)).path),
+  )
+  handle('reviews:get', (value, preferences, force) =>
+    workspace.backend.review(
+      workspace.requireWorktree(pathSchema.parse(value)).path,
+      reviewPreferencesSchema.parse(preferences),
+      z.boolean().optional().parse(force),
+    ),
   )
   handle('git:diff', (value, request) =>
     workspace.backend.diff(

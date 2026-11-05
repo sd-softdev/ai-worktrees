@@ -85,6 +85,7 @@ Select **Open workspace** to open a checked-out Git repository. The app also dis
 - Background terminals keep running when switching worktrees or tabs.
 - Manual task statuses and separate shell process statuses.
 - Staged, unstaged, and untracked changes, commit history, and branch diffs from the merge base.
+- GitHub pull-request and GitLab merge-request badges per worktree, with review and CI status.
 - File tree with text previews and readable diffs.
 - Resizable sidebars and persistent layouts per repository.
 - Hosts from your OpenSSH configuration, remote folder selection, and the same worktree, Git, and file operations over SSH.
@@ -93,6 +94,16 @@ Select **Open workspace** to open a checked-out Git repository. The app also dis
 Terminals start in their respective worktrees. Run regular CLI programs such as `opencode`, build commands, and development servers there. Clicking a terminal's close button terminates its process.
 
 Git status and the file tree refresh silently in the background every five seconds and whenever the window gains focus. Existing content stays visible while refreshing. Large previews are limited in size; terminal scrollback is limited to 8,000 lines.
+
+### Pull requests and merge requests
+
+The optional **PR / MR** inspector tab uses [GitHub CLI (`gh`)](https://cli.github.com/) or [GitLab CLI (`glab`)](https://gitlab.com/gitlab-org/cli#installation) and its existing authentication. Install the appropriate CLI on PATH and sign in with `gh auth login` or `glab auth login`, then refresh the tab. Missing CLIs, missing authentication, and network failures show an informational status in this panel; Git, worktrees, and terminals continue working normally.
+
+- Worktree badges show the associated request number and draft, open, merged, or closed state. The inspector adds its title, branches, review and check/pipeline status, and an **Open in browser** link. When multiple requests match, the latest updated open request is preferred, followed by the latest closed or merged request.
+- GitHub.com and GitLab.com are detected from Git remotes. For self-hosted instances, select **GitHub** or **GitLab** under **PR/MR provider** and authenticate the CLI for that hostname (`gh auth login --hostname HOST` or `glab auth login --hostname HOST`). Settings are saved per workspace; **Disabled** turns off CLI queries.
+- **Target remote** defaults to `upstream` when present, otherwise the branch source remote. Choose it explicitly for other layouts. Fork matching checks the source repository as well as the local branch name; push-remote overrides are respected.
+- Status refreshes every 60 seconds while the window is visible, with cached results on focus and a manual refresh button. Network failures retain a clearly marked last-known status. Review/pipeline details that the server does not expose are shown as unavailable.
+- For **SSH workspaces**, the CLI runs on the remote host and uses that host's installation and authentication. Install and sign in there, then refresh.
 
 ### Working over SSH
 

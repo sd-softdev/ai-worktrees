@@ -113,6 +113,114 @@ try {
   await expect(page.locator('.worktree-name strong')).toHaveText(['main'])
   await expect(page.locator('.terminal-process.running')).toHaveCount(1)
   await expect(page.locator('.clean-state')).toBeVisible()
+  await page.getByRole('tab', { name: 'PR / MR' }).click()
+  await expect(page.locator('.review-notice')).toContainText('Add a GitHub or GitLab remote')
+  // Exercise optional integration states through the real preload/IPC/UI path.
+  // CLI ENOENT, authentication and provider payloads are covered with real Git
+  // repositories in the integration tests, without requiring online accounts.
+  await app.evaluate(({ ipcMain, shell }) => {
+    globalThis.reviewProbe = {
+      original: ipcMain._invokeHandlers.get('reviews:get'),
+      openExternal: shell.openExternal,
+      result: null,
+      opened: null,
+    }
+    ipcMain.removeHandler('reviews:get')
+    ipcMain.handle('reviews:get', () => globalThis.reviewProbe.result)
+    shell.openExternal = async (url) => {
+      globalThis.reviewProbe.opened = url
+    }
+  })
+  for (const [provider, cli] of [
+    ['github', 'gh'],
+    ['gitlab', 'glab'],
+  ]) {
+    await app.evaluate(
+      (_electron, { provider, cli }) => {
+        globalThis.reviewProbe.result = {
+          status: 'unavailable',
+          reason: 'missing-cli',
+          provider,
+          host: `${provider}.com`,
+          remotes: ['origin'],
+          message: `${cli} is not available on PATH. Install the CLI, then refresh.`,
+        }
+      },
+      { provider, cli },
+    )
+    await page.getByRole('button', { name: 'Refresh PR/MR status' }).click()
+    await expect(
+      page.getByRole('button', { name: `${cli} installation instructions` }),
+    ).toBeVisible()
+    await expect(page.locator('.error-banner')).toHaveCount(0)
+    await expect(page.locator('.terminal-process.running')).toHaveCount(1)
+  }
+  await app.evaluate(() => {
+    globalThis.reviewProbe.result = {
+      status: 'unavailable',
+      reason: 'authentication',
+      provider: 'github',
+      host: 'github.com',
+      remotes: ['origin'],
+      message: 'Sign in with gh for github.com, then refresh.',
+    }
+  })
+  await page.getByRole('button', { name: 'Refresh PR/MR status' }).click()
+  await expect(page.locator('.review-login')).toHaveText('gh auth login --hostname github.com')
+  await app.evaluate(() => {
+    globalThis.reviewProbe.result = {
+      status: 'ready',
+      provider: 'github',
+      host: 'github.com',
+      repository: 'team/project',
+      remote: 'origin',
+      remotes: ['origin'],
+      checkedAt: new Date().toISOString(),
+      request: {
+        number: 42,
+        title: 'Workspace review integration',
+        url: 'https://github.com/team/project/pull/42',
+        state: 'open',
+        draft: true,
+        sourceBranch: 'main',
+        targetBranch: 'stable',
+        review: 'required',
+        checks: 'pending',
+      },
+    }
+  })
+  await page.getByRole('button', { name: 'Refresh PR/MR status' }).click()
+  await expect(page.locator('.worktree-card .review-badge')).toContainText('PR #42 · Draft')
+  await expect(page.locator('.review-details')).toContainText('Workspace review integration')
+  await expect(page.locator('.review-checks')).toHaveText('Pending')
+  await page.getByRole('button', { name: 'Open in browser', exact: true }).click()
+  await expect
+    .poll(() => app.evaluate(() => globalThis.reviewProbe.opened))
+    .toBe('https://github.com/team/project/pull/42')
+  await page.screenshot({ path: path.join(project, 'artifacts', 'reviews.png') })
+  await app.evaluate(() => {
+    globalThis.reviewProbe.result = {
+      ...globalThis.reviewProbe.result,
+      status: 'unavailable',
+      reason: 'request-failed',
+      message: 'PR/MR status is temporarily unavailable. Refresh to retry.',
+    }
+  })
+  await page.getByRole('button', { name: 'Refresh PR/MR status' }).click()
+  await expect(page.locator('.worktree-card .review-badge')).toContainText('Cached')
+  await expect(page.locator('.review-notice')).toContainText('Showing the last known status')
+  await expect(page.locator('.error-banner')).toHaveCount(0)
+  await app.evaluate(({ ipcMain, shell }) => {
+    ipcMain.removeHandler('reviews:get')
+    ipcMain.handle('reviews:get', globalThis.reviewProbe.original)
+    shell.openExternal = globalThis.reviewProbe.openExternal
+    delete globalThis.reviewProbe
+  })
+  await page.getByRole('button', { name: 'Refresh PR/MR status' }).click()
+  await expect(page.locator('.review-notice')).toContainText('Add a GitHub or GitLab remote')
+  await expect(page.locator('.worktree-card .review-badge')).toHaveCount(0)
+  await page.getByRole('tab', { name: 'Changes', exact: true }).click()
+  await expect(page.locator('.clean-state')).toBeVisible()
   // Hold a real Git response long enough to expose loading-state flicker.
   // Instrument IPC only in the test process; Git and the renderer stay real.
   await app.evaluate(({ ipcMain }) => {

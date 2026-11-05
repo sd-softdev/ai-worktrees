@@ -52,6 +52,8 @@ const api: DesktopAPI = {
     ipcRenderer.invoke('preferences:save', commonDir, preferences),
   getChanges: (path) => ipcRenderer.invoke('git:changes', path),
   getHistory: (path) => ipcRenderer.invoke('git:history', path),
+  getReview: (path, preferences, force) =>
+    ipcRenderer.invoke('reviews:get', path, preferences, force),
   getDiff: (path, request) => ipcRenderer.invoke('git:diff', path, request),
   listFiles: (worktree, relativePath) => ipcRenderer.invoke('files:list', worktree, relativePath),
   readFile: (worktree, relativePath) => ipcRenderer.invoke('files:read', worktree, relativePath),

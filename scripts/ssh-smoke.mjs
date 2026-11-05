@@ -1,6 +1,6 @@
 import { _electron as electron, expect as baseExpect } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -14,6 +14,21 @@ const directory = await mkdtemp(path.join(base, 'aw-ssh-smoke-'))
 const repository = path.join(directory, "remote repo's files")
 await mkdir(repository)
 await mkdir(path.join(project, 'artifacts'), { recursive: true })
+// Give only the remote helper an isolated PATH with Git and no optional CLIs.
+// Terminals and the SSH transport continue to use their normal environment.
+const helperBin = path.join(directory, 'helper-bin')
+const helperNode = path.join(directory, 'node with git-only PATH')
+const quote = (value) => `'${value.replaceAll("'", "'\\''")}'`
+await mkdir(helperBin)
+await symlink(
+  execFileSync('which', ['git'], { encoding: 'utf8' }).trim(),
+  path.join(helperBin, 'git'),
+)
+await writeFile(
+  helperNode,
+  `#!/bin/sh\nexport PATH=${quote(helperBin)}\nexec ${quote(process.execPath)} "$@"\n`,
+  { mode: 0o700 },
+)
 const git = (...args) => execFileSync('git', ['-C', repository, ...args], { encoding: 'utf8' })
 git('init', '-b', 'main')
 await writeFile(path.join(repository, 'README.md'), '# Remote SSH workspace\n')
@@ -81,7 +96,7 @@ try {
   await expect(page.getByRole('alert')).toContainText('Node.js was not found')
   await expect(page.getByRole('alert')).toContainText('Install Node.js 20+')
   await expect(page.getByRole('alert')).toContainText('absolute executable path')
-  await page.getByLabel('Node.js on the remote host').fill(process.execPath)
+  await page.getByLabel('Node.js on the remote host').fill(helperNode)
   await page.getByRole('button', { name: 'Connect', exact: true }).click()
   await page.getByLabel('Password / passphrase').fill(server.passphrase)
   await page.getByRole('button', { name: 'Confirm', exact: true }).click()
@@ -90,6 +105,24 @@ try {
   await page.getByRole('button', { name: 'Open repository', exact: true }).click()
   await expect(page.locator('.local-badge')).toContainText('SSH · workspace-smoke-host')
   await expect(page.locator('.terminal-process.running')).toHaveCount(1)
+  await page.getByRole('tab', { name: 'PR / MR' }).click()
+  await expect(page.locator('.review-notice')).toContainText('Add a GitHub or GitLab remote')
+  await expect(page.locator('.review-settings')).toContainText(
+    'CLIs run on SSH host workspace-smoke-host',
+  )
+  git('remote', 'add', 'origin', 'https://github.com/team/project.git')
+  await page.getByRole('button', { name: 'Refresh PR/MR status' }).click()
+  await expect(page.locator('.review-notice')).toContainText('gh is not available on PATH')
+  await expect(page.locator('.error-banner')).toHaveCount(0)
+  git('remote', 'set-url', 'origin', 'https://gitlab.com/team/project.git')
+  await page.getByLabel('PR/MR provider').selectOption('gitlab')
+  await expect(page.locator('.review-notice')).toContainText('glab is not available on PATH')
+  await expect(page.locator('.error-banner')).toHaveCount(0)
+  await expect(page.locator('.terminal-process.running')).toHaveCount(1)
+  git('remote', 'remove', 'origin')
+  await page.getByLabel('PR/MR provider').selectOption('auto')
+  await expect(page.locator('.review-notice')).toContainText('Add a GitHub or GitLab remote')
+  await page.getByRole('tab', { name: 'Changes', exact: true }).click()
   await command('export SSH_SESSION=remote-alive')
   await command('printf "SSH_%s\\n" READY')
   await expect(page.locator('.terminal-workspace:visible .xterm-rows')).toContainText('SSH_READY')

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { leaves } from '../../../shared/layout'
 import { defaultWorktreePreferences, type TaskStatus, type Worktree } from '../../../shared/types'
+import { ReviewBadge } from './Reviews'
 import { errorMessage, useApp } from '../store'
 import { Modal } from './Modal'
 import { APP_VERSION } from '../../../shared/version'
@@ -136,6 +137,7 @@ export function WorktreeSidebar() {
                     </>
                   )}
                 </div>
+                <ReviewBadge worktree={worktree} />
               </button>
               <div className="worktree-actions">
                 <button

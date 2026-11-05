@@ -5,6 +5,8 @@ import type {
   FileEntry,
   FilePreview,
   RemoteDirectory,
+  ReviewPreferences,
+  ReviewResult,
   Workspace,
   Worktree,
 } from '../../shared/types'
@@ -38,6 +40,9 @@ export class SshBackend implements WorkspaceBackend {
   }
   history(directory: string): Promise<Commit[]> {
     return this.connection.call('history', directory)
+  }
+  review(directory: string, preferences: ReviewPreferences, force = false): Promise<ReviewResult> {
+    return this.connection.call('review', directory, preferences, force)
   }
   diff(directory: string, request: DiffRequest): Promise<string> {
     return this.connection.call('diff', directory, request)
