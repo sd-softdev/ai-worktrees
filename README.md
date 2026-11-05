@@ -23,7 +23,7 @@ curl -fsSL https://github.com/sd-softdev/ai-worktrees/releases/latest/download/i
 Pass options using `bash -s --`, for example to install the portable Linux package:
 
 ```bash
-curl -fsSL https://github.com/sd-softdev/ai-worktrees/releases/latest/download/install.sh | bash -s -- --portable --version v0.3.0
+curl -fsSL https://github.com/sd-softdev/ai-worktrees/releases/latest/download/install.sh | bash -s -- --portable --version v0.4.0
 ```
 
 Use `--install-dir DIRECTORY` to choose the destination for macOS or AppImage installations. `--dry-run` displays the selected package. To update, close the app and run the script again.
@@ -36,18 +36,18 @@ Invoke-WebRequest -UseBasicParsing 'https://github.com/sd-softdev/ai-worktrees/r
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installer
 ```
 
-Installs using NSIS to `%LOCALAPPDATA%\Programs\Agent Workspace`. Supports Windows PowerShell 5.1 and PowerShell 7. Optional parameters include `-Version v0.3.0`, `-InstallDirectory 'C:\Apps\Agent Workspace'`, and `-DryRun`.
+Installs using NSIS to `%LOCALAPPDATA%\Programs\Agent Workspace`. Supports Windows PowerShell 5.1 and PowerShell 7. Optional parameters include `-Version v0.4.0`, `-InstallDirectory 'C:\Apps\Agent Workspace'`, and `-DryRun`.
 
 ### Offline installation
 
 Download the appropriate package, `SHA256SUMS`, and installation script from the same release:
 
 ```bash
-bash install.sh --version v0.3.0 --asset ./agent-workspace-0.3.0-mac-arm64.dmg --checksums ./SHA256SUMS
+bash install.sh --version v0.4.0 --asset ./agent-workspace-0.4.0-mac-arm64.dmg --checksums ./SHA256SUMS
 ```
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Version v0.3.0 -InstallerPath .\agent-workspace-0.3.0-win-x64.exe -ChecksumPath .\SHA256SUMS
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Version v0.4.0 -InstallerPath .\agent-workspace-0.4.0-win-x64.exe -ChecksumPath .\SHA256SUMS
 ```
 
 ### In-app updates (from v0.3.0)
@@ -60,7 +60,7 @@ Click the version button in the bottom-right status bar or choose **Help → Che
 
 Downloads and installation require an explicit action. Quitting normally does not install a downloaded update. If terminals are running, installation asks for confirmation before closing them. Workspace layouts are saved; shells start fresh after relaunch. Development builds and unpackaged Linux executables do not self-update.
 
-**Upgrading from v0.2.1 or earlier:** install v0.3.0 once using the installer or installation script above. Older versions do not contain the update interface.
+**Upgrading from v0.2.1 or earlier:** install the current release once using the installer or installation script above. Older versions do not contain the update interface.
 
 ## Development setup
 
@@ -180,7 +180,7 @@ npm run test:install
 | `npm run dist:win`   | Windows x64                 | `.exe` (NSIS installer) |
 | `npm run dist:linux` | Linux x64                   | `.AppImage`, `.deb`     |
 
-Examples: `dist/agent-workspace-0.3.0-linux-x86_64.AppImage` and `dist/agent-workspace-0.3.0-linux-amd64.deb`. Both Linux packages target x64. AppImages may additionally require FUSE 2 (`libfuse2t64` on Ubuntu 24.04). Make the AppImage executable before launching it.
+Examples: `dist/agent-workspace-0.4.0-linux-x86_64.AppImage` and `dist/agent-workspace-0.4.0-linux-amd64.deb`. Both Linux packages target x64. AppImages may additionally require FUSE 2 (`libfuse2t64` on Ubuntu 24.04). Make the AppImage executable before launching it.
 
 Set `AGENT_WORKSPACE_EXECUTABLE` to test a different app executable. Use Xvfb for headless Linux tests:
 
@@ -201,7 +201,7 @@ The [desktop pipeline](https://github.com/sd-softdev/ai-worktrees/actions/workfl
 
 Each job runs `npm ci`, checks formatting, runs integration tests, builds the installers, and launches the **packaged app** in the desktop smoke test. It then tests the turnkey scripts, including actual installation and launch of the installed app. Linux also runs the SSH end-to-end test. Installers are uploaded as `installers-*` artifacts only after the tests pass; screenshots and logs are available as `diagnostics-*`. Artifacts are retained for seven days.
 
-A tag such as `v0.3.0`, matching the version in `package.json`, automatically publishes a [GitHub release](https://github.com/sd-softdev/ai-worktrees/releases) after all four builds succeed. Releases include the packages, `install.sh`, `install.ps1`, and `SHA256SUMS`. Update manifests (`latest.yml`, `latest-linux.yml`, and `latest-mac.yml`) are assembled from the tested artifacts; the macOS manifest includes both architectures. Regular branch builds produce workflow artifacts.
+A tag such as `v0.4.0`, matching the version in `package.json`, automatically publishes a [GitHub release](https://github.com/sd-softdev/ai-worktrees/releases) after all four builds succeed. Releases include the packages, `install.sh`, `install.ps1`, and `SHA256SUMS`. Update manifests (`latest.yml`, `latest-linux.yml`, and `latest-mac.yml`) are assembled from the tested artifacts; the macOS manifest includes both architectures. Regular branch builds produce workflow artifacts.
 
 ## Project structure
 
