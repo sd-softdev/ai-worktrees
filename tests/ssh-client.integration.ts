@@ -54,14 +54,24 @@ async function main() {
         reject(error)
       }
     })
-    console.log('SSH client PTY test passed: executable lookup and real OpenSSH launch.')
   } finally {
     if (originalPath === undefined) delete process.env.PATH
     else process.env.PATH = originalPath
     await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
   }
 }
-void main().catch((error) => {
-  console.error(error)
-  process.exitCode = 1
-})
+// ConPTY's worker can keep this standalone Electron-as-Node runner alive after
+// the shell exits. Finish only after assertions, cleanup, and output flushing.
+void main().then(
+  () => {
+    process.stdout.write(
+      'SSH client PTY test passed: executable lookup and real OpenSSH launch.\n',
+      () => process.exit(0),
+    )
+  },
+  (error) => {
+    process.stderr.write(`${error instanceof Error ? error.stack : String(error)}\n`, () =>
+      process.exit(1),
+    )
+  },
+)
