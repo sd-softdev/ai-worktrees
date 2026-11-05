@@ -45,30 +45,45 @@ export function Inspector() {
   const [loading, setLoading] = useState(true)
   const [preview, setPreview] = useState<Preview | null>(null)
   const request = useRef(0)
+  const loaded = useRef(new Set<string>())
 
   useEffect(() => {
     request.current++
     setPreview(null)
     setFiles([])
     setCommits([])
+    loaded.current.clear()
   }, [worktree])
+
+  useEffect(() => setError(null), [worktree, tab])
 
   useEffect(() => {
     let cancelled = false
-    setError(null)
     if (tab === 'files') {
       setLoading(false)
       return
     }
-    setLoading(true)
+    // Only show the initial loading state. Polling must keep the existing
+    // content (including the clean state) mounted until new data arrives.
+    setLoading(!loaded.current.has(tab))
     const load = async () => {
       try {
         if (tab === 'changes') {
           const result = await window.desktop.getChanges(worktree)
-          if (!cancelled) setFiles(result)
+          if (!cancelled)
+            setFiles((current) =>
+              JSON.stringify(current) === JSON.stringify(result) ? current : result,
+            )
         } else {
           const result = await window.desktop.getHistory(worktree)
-          if (!cancelled) setCommits(result)
+          if (!cancelled)
+            setCommits((current) =>
+              JSON.stringify(current) === JSON.stringify(result) ? current : result,
+            )
+        }
+        if (!cancelled) {
+          loaded.current.add(tab)
+          setError(null)
         }
       } catch (error) {
         if (!cancelled) setError(errorMessage(error))
@@ -110,9 +125,9 @@ export function Inspector() {
           .slice(0, 1024 * 1024),
         note:
           typeof value !== 'string' && value.binary
-            ? 'Binärdatei – keine Textvorschau verfügbar.'
+            ? 'Binary file — no text preview available.'
             : truncated
-              ? 'Die Vorschau wurde für diese große Datei gekürzt.'
+              ? 'The preview was truncated for this large file.'
               : undefined,
       })
     } catch (error) {
@@ -143,14 +158,14 @@ export function Inspector() {
   const unstaged = files.filter((file) => file.working !== ' ' && file.working !== '?')
   const untracked = files.filter((file) => file.index === '?')
   const tabs: { id: InspectorTab; label: string; icon: typeof History }[] = [
-    { id: 'changes', label: 'Änderungen', icon: GitCompareArrows },
-    { id: 'history', label: 'Verlauf', icon: History },
-    { id: 'files', label: 'Dateien', icon: Folder },
+    { id: 'changes', label: 'Changes', icon: GitCompareArrows },
+    { id: 'history', label: 'History', icon: History },
+    { id: 'files', label: 'Files', icon: Folder },
   ]
 
   return (
-    <aside className="inspector" aria-label="Git und Dateien">
-      <div className="inspector-tabs" role="tablist" aria-label="Git-Ansicht">
+    <aside className="inspector" aria-label="Git and files">
+      <div className="inspector-tabs" role="tablist" aria-label="Git view">
         {tabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -173,14 +188,14 @@ export function Inspector() {
         {tab === 'changes' && (
           <>
             <div className="section-heading">
-              <h2>Arbeitsverzeichnis</h2>
+              <h2>Working directory</h2>
               <span className="count">{files.length}</span>
             </div>
             {!files.length && !loading && !error && (
               <div className="clean-state">
                 <CheckCheck size={28} />
-                <strong>Alles aufgeräumt</strong>
-                <span>Keine lokalen Änderungen.</span>
+                <strong>All clean</strong>
+                <span>No local changes.</span>
               </div>
             )}
             <ChangeGroup
@@ -198,11 +213,11 @@ export function Inspector() {
             <ChangeGroup title="Untracked" files={untracked} status="index" onSelect={showFile} />
             <div className="branch-compare">
               <div className="section-heading">
-                <h2>Branch vergleichen</h2>
+                <h2>Compare branch</h2>
                 <GitCompareArrows size={15} />
               </div>
               <label className="small muted" htmlFor="target-branch">
-                Zielbranch
+                Target branch
               </label>
               <select
                 id="target-branch"
@@ -221,8 +236,8 @@ export function Inspector() {
                 className="secondary-button full-width"
                 onClick={() =>
                   void showPreview(
-                    'Branch-Änderungen',
-                    `Seit gemeinsamem Ausgangspunkt mit ${preferences.targetBranch}`,
+                    'Branch changes',
+                    `Since the merge base with ${preferences.targetBranch}`,
                     true,
                     () =>
                       window.desktop.getDiff(worktree, {
@@ -233,10 +248,10 @@ export function Inspector() {
                 }
               >
                 <GitCompareArrows size={15} />
-                Branch-Diff öffnen
+                Open branch diff
               </button>
               <p className="small muted">
-                Zeigt die committeten Änderungen dieses Branches seit dem gemeinsamen Ausgangspunkt.
+                Shows committed changes on this branch since the merge base.
               </p>
             </div>
           </>
@@ -244,9 +259,9 @@ export function Inspector() {
         {tab === 'history' && (
           <>
             <div className="section-heading">
-              <h2>Git-Verlauf</h2>
+              <h2>Git history</h2>
               <span className="small muted">
-                {commits.length === 80 ? 'Letzte 80' : commits.length} Commits
+                {commits.length === 80 ? 'Latest 80' : commits.length} commits
               </span>
             </div>
             <div className="commit-list">
@@ -280,7 +295,7 @@ export function Inspector() {
             {!commits.length && !loading && !error && (
               <div className="empty-inspector">
                 <GitCommitHorizontal size={28} />
-                <p>Noch keine Commits.</p>
+                <p>No commits yet.</p>
               </div>
             )}
           </>
@@ -288,7 +303,7 @@ export function Inspector() {
         {tab === 'files' && (
           <>
             <div className="section-heading">
-              <h2>Dateibaum</h2>
+              <h2>File tree</h2>
               <FileCode2 size={15} />
             </div>
             <FileTree
@@ -304,7 +319,7 @@ export function Inspector() {
         {loading && (
           <div className="loading-indicator">
             <RefreshCw size={13} className="spinning" />
-            Aktualisieren …
+            Loading …
           </div>
         )}
       </div>
@@ -319,7 +334,7 @@ export function Inspector() {
         >
           <div className="preview-subtitle">{preview.subtitle}</div>
           {preview.loading ? (
-            <div className="preview-placeholder">Vorschau laden …</div>
+            <div className="preview-placeholder">Loading preview …</div>
           ) : preview.error ? (
             <div className="modal-body">
               <div className="inline-error">{preview.error}</div>
@@ -339,7 +354,7 @@ export function Inspector() {
               ) : (
                 !preview.note && (
                   <div className="preview-placeholder">
-                    {preview.diff ? 'Keine Unterschiede.' : 'Leere Datei.'}
+                    {preview.diff ? 'No differences.' : 'Empty file.'}
                   </div>
                 )
               )}
@@ -411,7 +426,9 @@ function FileTree({
       .listFiles(worktree, directory)
       .then((value) => {
         if (!cancelled) {
-          setEntries(value)
+          setEntries((current) =>
+            JSON.stringify(current) === JSON.stringify(value) ? current : value,
+          )
           setError(null)
         }
       })
@@ -427,9 +444,9 @@ function FileTree({
   }, [worktree, directory, revision])
   return (
     <div className="file-tree" role={depth === 0 ? 'tree' : 'group'}>
-      {loading && <div className="tree-notice">Laden …</div>}
+      {loading && <div className="tree-notice">Loading …</div>}
       {error && <div className="inline-error">{error}</div>}
-      {!loading && !entries.length && !error && <div className="tree-notice">Leerer Ordner</div>}
+      {!loading && !entries.length && !error && <div className="tree-notice">Empty folder</div>}
       {entries.slice(0, 1000).map((entry) => {
         const open = expanded.has(entry.path)
         const isDirectory = entry.kind === 'directory'
@@ -482,7 +499,7 @@ function FileTree({
         )
       })}
       {entries.length > 1000 && (
-        <div className="tree-notice">Weitere {entries.length - 1000} Einträge ausgeblendet.</div>
+        <div className="tree-notice">{entries.length - 1000} more entries hidden.</div>
       )}
     </div>
   )
@@ -499,7 +516,7 @@ function diffClass(line: string): string {
 
 function relativeDate(date: string): string {
   const seconds = (new Date(date).getTime() - Date.now()) / 1000
-  const format = new Intl.RelativeTimeFormat('de', { numeric: 'auto' })
+  const format = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
   if (Math.abs(seconds) < 3600) return format.format(Math.round(seconds / 60), 'minute')
   if (Math.abs(seconds) < 86400) return format.format(Math.round(seconds / 3600), 'hour')
   return format.format(Math.round(seconds / 86400), 'day')

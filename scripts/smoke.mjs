@@ -100,14 +100,63 @@ async function terminalCommand(command, index = 0) {
 
 try {
   await launch()
-  await expect(page.getByRole('heading', { name: /Ein Workspace/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /One workspace/ })).toBeVisible()
   await page.screenshot({ path: path.join(project, 'artifacts', 'welcome.png') })
   await app.evaluate(({ dialog }, repository) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [repository] })
   }, repository)
-  await page.getByRole('button', { name: 'Git-Repository öffnen' }).click()
+  await page.getByRole('button', { name: 'Open Git repository' }).click()
   await expect(page.locator('.worktree-name strong')).toHaveText(['main'])
   await expect(page.locator('.terminal-process.running')).toHaveCount(1)
+  await expect(page.locator('.clean-state')).toBeVisible()
+  // Hold a real Git response long enough to expose loading-state flicker.
+  // Instrument IPC only in the test process; Git and the renderer stay real.
+  await app.evaluate(({ ipcMain }) => {
+    const original = ipcMain._invokeHandlers.get('git:changes')
+    globalThis.inspectorProbe = { completed: 0, original }
+    ipcMain.removeHandler('git:changes')
+    ipcMain.handle('git:changes', async (...args) => {
+      const result = await original(...args)
+      await new Promise((resolve) => setTimeout(resolve, 400))
+      globalThis.inspectorProbe.completed++
+      return result
+    })
+  })
+  await page.evaluate(() => {
+    const clean = document.querySelector('.clean-state')
+    const probe = { clean, flickered: false }
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.removedNodes)
+          if (node === clean || node.contains(clean)) probe.flickered = true
+        for (const node of record.addedNodes)
+          if (node instanceof Element && node.matches('.loading-indicator')) probe.flickered = true
+      }
+    })
+    observer.observe(document.querySelector('.inspector-content'), {
+      childList: true,
+      subtree: true,
+    })
+    window.inspectorProbe = { probe, observer }
+  })
+  await page.getByRole('button', { name: 'Refresh workspace', exact: true }).click()
+  await expect
+    .poll(() => app.evaluate(() => globalThis.inspectorProbe.completed))
+    .toBeGreaterThan(0)
+  await page.evaluate(() => new Promise(requestAnimationFrame))
+  const steady = await page.evaluate(() => {
+    const { probe, observer } = window.inspectorProbe
+    observer.disconnect()
+    return !probe.flickered && probe.clean === document.querySelector('.clean-state')
+  })
+  expect(steady, 'Background refresh must preserve the clean state without a loading flash').toBe(
+    true,
+  )
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler('git:changes')
+    ipcMain.handle('git:changes', globalThis.inspectorProbe.original)
+    delete globalThis.inspectorProbe
+  })
   await terminalCommand(probe('ready', 'MAIN'))
   await expect(page.locator('.terminal-workspace:visible .xterm-rows')).toContainText('MAIN_READY')
   await terminalCommand(setVariable('WORKTREE_SESSION', 'main-alive'))
@@ -129,12 +178,10 @@ try {
     'FLOW_CONTROL_COMPLETE',
   )
 
-  await page.getByRole('button', { name: 'Neuer Worktree', exact: true }).click()
-  await page.getByLabel('Branch-Name').fill('feat/auth-ui')
-  await page
-    .getByRole('textbox', { name: 'Aufgabe optional' })
-    .fill('Login-Oberfläche implementieren')
-  await page.getByRole('button', { name: 'Worktree erstellen' }).click()
+  await page.getByRole('button', { name: 'New worktree', exact: true }).click()
+  await page.getByLabel('Branch name').fill('feat/auth-ui')
+  await page.getByRole('textbox', { name: 'Task optional' }).fill('Implement the login screen')
+  await page.getByRole('button', { name: 'Create worktree' }).click()
   await expect(page.locator('.worktree-card')).toHaveCount(2)
   await expect(page.locator('.worktree-card.active .worktree-name strong')).toHaveText(
     'feat/auth-ui',
@@ -145,7 +192,7 @@ try {
     'FEATURE_READY',
   )
 
-  await page.getByRole('button', { name: 'Terminal nebeneinander teilen' }).click()
+  await page.getByRole('button', { name: 'Split terminal side by side' }).click()
   await expect(page.locator('.terminal-workspace:visible .terminal-pane')).toHaveCount(2)
   await expect(page.locator('.terminal-workspace:visible .terminal-process.running')).toHaveCount(2)
   await terminalCommand(probe('ready', 'SPLIT'), 1)
@@ -153,9 +200,9 @@ try {
     page.locator('.terminal-workspace:visible .terminal-pane').nth(1).locator('.xterm-rows'),
   ).toContainText('SPLIT_READY')
   await terminalCommand(setVariable('SPLIT_SESSION', 'alive'), 1)
-  await page.getByRole('button', { name: 'Terminal untereinander teilen' }).nth(1).click()
+  await page.getByRole('button', { name: 'Split terminal top and bottom' }).nth(1).click()
   await expect(page.locator('.terminal-workspace:visible .terminal-process.running')).toHaveCount(3)
-  await page.getByRole('button', { name: 'Terminal schließen', exact: true }).last().click()
+  await page.getByRole('button', { name: 'Close terminal', exact: true }).last().click()
   await expect(page.locator('.terminal-workspace:visible .terminal-pane')).toHaveCount(2)
   await terminalCommand(probe('session', 'SPLIT_SESSION', 'SPLIT_STATE'), 1)
   await expect(
@@ -163,7 +210,7 @@ try {
   ).toContainText('SPLIT_STATE=alive')
   await terminalCommand('exit', 1)
   await expect(page.locator('.terminal-workspace:visible .terminal-process.exited')).toHaveCount(1)
-  await page.getByRole('button', { name: 'Shell neu starten' }).click()
+  await page.getByRole('button', { name: 'Restart shell' }).click()
   await expect(page.locator('.terminal-workspace:visible .terminal-process.running')).toHaveCount(2)
   await terminalCommand(probe('ready', 'SHELL_RESTART'), 1)
   await expect(
@@ -186,21 +233,21 @@ try {
     .click()
   await expect(page.locator('.terminal-workspace:visible .terminal-pane')).toHaveCount(2)
 
-  await page.getByRole('button', { name: 'Workspace aktualisieren', exact: true }).click()
+  await page.getByRole('button', { name: 'Refresh workspace', exact: true }).click()
   await expect(page.locator('.changed-file')).toContainText('src/auth.ts')
   await page.locator('.changed-file').click()
   await expect(page.locator('.code-preview')).toContainText('export const login = true')
-  await page.getByRole('button', { name: 'Dialog schließen' }).click()
+  await page.getByRole('button', { name: 'Close dialog' }).click()
 
-  await page.getByRole('tab', { name: 'Verlauf', exact: true }).click()
+  await page.getByRole('tab', { name: 'History', exact: true }).click()
   await expect(page.locator('.commit')).toHaveCount(1)
   await page.locator('.commit').click()
   await expect(page.locator('.code-preview')).toContainText('Desktop smoke-test fixture')
-  await page.getByRole('button', { name: 'Dialog schließen' }).click()
-  await page.getByRole('tab', { name: 'Dateien', exact: true }).click()
+  await page.getByRole('button', { name: 'Close dialog' }).click()
+  await page.getByRole('tab', { name: 'Files', exact: true }).click()
   await page.getByRole('button', { name: 'src', exact: true }).click()
   await expect(page.getByRole('button', { name: 'auth.ts', exact: true })).toBeVisible()
-  await page.getByRole('tab', { name: 'Änderungen', exact: true }).click()
+  await page.getByRole('tab', { name: 'Changes', exact: true }).click()
   await page.screenshot({ path: path.join(project, 'artifacts', 'workspace.png') })
 
   await app.evaluate(({ BrowserWindow }) =>
@@ -242,12 +289,12 @@ try {
   expect(errors).toEqual([])
 
   // Closing both panes permits removal, but the uncommitted file still protects it.
-  await page.getByRole('button', { name: 'Terminal schließen', exact: true }).first().click()
-  await page.getByRole('button', { name: 'Terminal schließen', exact: true }).first().click()
-  await page.getByRole('button', { name: 'Worktree feat/auth-ui entfernen' }).click()
-  await page.getByRole('button', { name: 'Worktree entfernen', exact: true }).click()
-  await expect(page.locator('dialog .inline-error')).toContainText('lokale Änderungen')
-  await page.getByRole('button', { name: 'Abbrechen', exact: true }).click()
+  await page.getByRole('button', { name: 'Close terminal', exact: true }).first().click()
+  await page.getByRole('button', { name: 'Close terminal', exact: true }).first().click()
+  await page.getByRole('button', { name: 'Remove worktree feat/auth-ui' }).click()
+  await page.getByRole('button', { name: 'Remove worktree', exact: true }).click()
+  await expect(page.locator('dialog .inline-error')).toContainText('local changes')
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
 
   const tracked = git('worktree', 'list', '--porcelain', '-z')
     .split('\0')
@@ -268,8 +315,8 @@ try {
     '-m',
     'Implement login',
   ])
-  await page.getByRole('button', { name: 'Worktree feat/auth-ui entfernen' }).click()
-  await page.getByRole('button', { name: 'Worktree entfernen', exact: true }).click()
+  await page.getByRole('button', { name: 'Remove worktree feat/auth-ui' }).click()
+  await page.getByRole('button', { name: 'Remove worktree', exact: true }).click()
   await expect(page.locator('.worktree-card')).toHaveCount(1)
   await expect(page.locator('.worktree-card.active .worktree-name strong')).toHaveText('main')
   expect(git('show', 'feat/auth-ui:src/auth.ts')).toContain('login = true')

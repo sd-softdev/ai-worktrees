@@ -17,10 +17,10 @@ import { Modal } from './Modal'
 import { APP_VERSION } from '../../../shared/version'
 
 export const taskLabels: Record<TaskStatus, string> = {
-  todo: 'Offen',
-  working: 'In Arbeit',
+  todo: 'To do',
+  working: 'In progress',
   review: 'Review',
-  done: 'Erledigt',
+  done: 'Done',
 }
 
 export function WorktreeSidebar() {
@@ -56,7 +56,7 @@ export function WorktreeSidebar() {
           <strong>{workspace.name}</strong>
         </div>
         <span className="muted small">
-          {workspace.remote ? `SSH · ${workspace.remote.host}` : 'Git-Repository'}
+          {workspace.remote ? `SSH · ${workspace.remote.host}` : 'Git repository'}
         </span>
         <span className="repository-path" title={workspace.rootPath}>
           {workspace.rootPath}
@@ -64,7 +64,7 @@ export function WorktreeSidebar() {
         <div className="convention">
           <Layers3 size={13} />
           <span>
-            Neue Worktrees unter <code>.worktrees/</code>
+            New worktrees in <code>.worktrees/</code>
           </span>
         </div>
       </div>
@@ -75,7 +75,7 @@ export function WorktreeSidebar() {
       </div>
       <button className="primary-button new-worktree" onClick={() => setCreating(true)}>
         <Plus size={17} />
-        Neuer Worktree
+        New worktree
       </button>
       <div className="worktree-list">
         {workspace.worktrees.map((worktree) => {
@@ -99,11 +99,11 @@ export function WorktreeSidebar() {
                 <div className="worktree-name">
                   <FolderGit2 size={17} />
                   <strong>{worktree.branch || 'Detached HEAD'}</strong>
-                  {active && <span className="active-badge">Aktiv</span>}
+                  {active && <span className="active-badge">Active</span>}
                 </div>
                 <div className="worktree-detail">
                   <GitBranch size={13} />
-                  <span>{worktree.isMain ? 'Haupt-Worktree' : worktree.head.slice(0, 7)}</span>
+                  <span>{worktree.isMain ? 'Main worktree' : worktree.head.slice(0, 7)}</span>
                   {worktree.locked && <LockKeyhole size={12} />}
                 </div>
                 {settings.task && <div className="worktree-task">{settings.task}</div>}
@@ -113,26 +113,26 @@ export function WorktreeSidebar() {
                     {taskLabels[settings.status]}
                   </span>
                   <span className="process-count">
-                    {running > 0 ? `${running} Shell${running > 1 ? 's' : ''}` : 'Keine Shell'}
+                    {running > 0 ? `${running} shell${running > 1 ? 's' : ''}` : 'No shells'}
                   </span>
                 </div>
                 <div className="worktree-git">
                   {worktree.missing ? (
                     <>
                       <CircleAlert size={12} />
-                      Verzeichnis fehlt
+                      Directory missing
                     </>
                   ) : worktree.statusError ? (
-                    <span title={worktree.statusError}>Git-Status nicht verfügbar</span>
+                    <span title={worktree.statusError}>Git status unavailable</span>
                   ) : worktree.changedFiles > 0 ? (
                     <>
                       <span className="changed-dot" />
-                      {worktree.changedFiles} geändert
+                      {worktree.changedFiles} changed
                     </>
                   ) : (
                     <>
                       <Check size={12} />
-                      Sauber
+                      Clean
                     </>
                   )}
                 </div>
@@ -140,8 +140,8 @@ export function WorktreeSidebar() {
               <div className="worktree-actions">
                 <button
                   className="icon-button"
-                  title="Aufgabe bearbeiten"
-                  aria-label={`Aufgabe für ${worktree.branch} bearbeiten`}
+                  title="Edit task"
+                  aria-label={`Edit task for ${worktree.branch}`}
                   onClick={() => setEditing(worktree)}
                 >
                   <Pencil size={13} />
@@ -149,8 +149,8 @@ export function WorktreeSidebar() {
                 {!worktree.isMain && (
                   <button
                     className="icon-button danger-hover"
-                    title="Worktree entfernen"
-                    aria-label={`Worktree ${worktree.branch} entfernen`}
+                    title="Remove worktree"
+                    aria-label={`Remove worktree ${worktree.branch}`}
                     onClick={() => {
                       setRemoveError(null)
                       setRemoving(worktree)
@@ -166,21 +166,19 @@ export function WorktreeSidebar() {
       </div>
       <div className="sidebar-footer">
         <span className="dot green" />
-        {workspace.remote ? `SSH · ${workspace.remote.host}` : 'Lokaler Workspace'}
+        {workspace.remote ? `SSH · ${workspace.remote.host}` : 'Local workspace'}
         <span className="version">v{APP_VERSION}</span>
       </div>
       {creating && <CreateWorktreeDialog onClose={() => setCreating(false)} />}
       {editing && <TaskDialog worktree={editing} onClose={() => setEditing(null)} />}
       {removing && (
-        <Modal title="Worktree entfernen" onClose={() => !busy && setRemoving(null)}>
+        <Modal title="Remove worktree" onClose={() => !busy && setRemoving(null)}>
           <div className="modal-body">
             <p>
-              Das Verzeichnis von <strong>{removing.branch || removing.path}</strong> wird entfernt.
-              Der Branch und seine Commits bleiben erhalten.
+              The directory for <strong>{removing.branch || removing.path}</strong> will be removed.
+              Its branch and commits will be preserved.
             </p>
-            <p className="muted">
-              Lokale Änderungen oder laufende Terminals müssen vorher abgeschlossen werden.
-            </p>
+            <p className="muted">Commit or save local changes and close running terminals first.</p>
             {removeError && (
               <div className="inline-error" role="alert">
                 {removeError}
@@ -189,10 +187,10 @@ export function WorktreeSidebar() {
           </div>
           <div className="modal-footer">
             <button className="secondary-button" disabled={busy} onClick={() => setRemoving(null)}>
-              Abbrechen
+              Cancel
             </button>
             <button className="danger-button" disabled={busy} onClick={() => void remove()}>
-              {busy ? 'Entfernen …' : 'Worktree entfernen'}
+              {busy ? 'Removing …' : 'Remove worktree'}
             </button>
           </div>
         </Modal>
@@ -230,12 +228,12 @@ function CreateWorktreeDialog({ onClose }: { onClose: () => void }) {
     }
   }
   return (
-    <Modal title="Neuer Worktree" onClose={() => !busy && onClose()}>
+    <Modal title="New worktree" onClose={() => !busy && onClose()}>
       <form onSubmit={(event) => void submit(event)}>
         <div className="modal-body form-stack">
-          <p className="muted">Ein eigener Branch und Arbeitsbereich für deine nächste Aufgabe.</p>
+          <p className="muted">A separate branch and working directory for your next task.</p>
           <label>
-            Branch-Name
+            Branch name
             <input
               autoFocus
               required
@@ -246,7 +244,7 @@ function CreateWorktreeDialog({ onClose }: { onClose: () => void }) {
             />
           </label>
           <label>
-            Ausgangsbranch
+            Base branch
             <select value={base} onChange={(event) => setBase(event.target.value)}>
               {[...new Set([workspace.defaultBase, ...workspace.branches])].map((item) => (
                 <option key={item}>{item}</option>
@@ -254,18 +252,18 @@ function CreateWorktreeDialog({ onClose }: { onClose: () => void }) {
             </select>
           </label>
           <label>
-            Aufgabe <span className="muted">optional</span>
+            Task <span className="muted">optional</span>
             <input
               value={task}
               maxLength={500}
-              placeholder="Login-Oberfläche implementieren"
+              placeholder="Implement the login screen"
               onChange={(event) => setTask(event.target.value)}
             />
           </label>
           <div className="hint">
             <FolderGit2 size={15} />
             <span>
-              Wird unter <code>{workspace.rootPath}/.worktrees/</code> angelegt.
+              Created in <code>{workspace.rootPath}/.worktrees/</code>.
             </span>
           </div>
           {error && (
@@ -276,11 +274,11 @@ function CreateWorktreeDialog({ onClose }: { onClose: () => void }) {
         </div>
         <div className="modal-footer">
           <button type="button" className="secondary-button" disabled={busy} onClick={onClose}>
-            Abbrechen
+            Cancel
           </button>
           <button className="primary-button" disabled={busy || !branch.trim()}>
             <Plus size={15} />
-            {busy ? 'Erstellen …' : 'Worktree erstellen'}
+            {busy ? 'Creating …' : 'Create worktree'}
           </button>
         </div>
       </form>
@@ -294,7 +292,7 @@ function TaskDialog({ worktree, onClose }: { worktree: Worktree; onClose: () => 
   const [task, setTask] = useState(settings.task)
   const [status, setStatus] = useState(settings.status)
   return (
-    <Modal title="Aufgabe bearbeiten" onClose={onClose}>
+    <Modal title="Edit task" onClose={onClose}>
       <form
         onSubmit={(event) => {
           event.preventDefault()
@@ -304,12 +302,12 @@ function TaskDialog({ worktree, onClose }: { worktree: Worktree; onClose: () => 
       >
         <div className="modal-body form-stack">
           <label>
-            Aufgabe
+            Task
             <input
               autoFocus
               value={task}
               maxLength={500}
-              placeholder="Woran arbeitest du hier?"
+              placeholder="What are you working on here?"
               onChange={(event) => setTask(event.target.value)}
             />
           </label>
@@ -327,14 +325,14 @@ function TaskDialog({ worktree, onClose }: { worktree: Worktree; onClose: () => 
             </select>
           </label>
           <p className="muted small">
-            Der Aufgabenstatus wird manuell gesetzt und ist unabhängig von den Terminalprozessen.
+            Task status is set manually and is independent of terminal processes.
           </p>
         </div>
         <div className="modal-footer">
           <button type="button" className="secondary-button" onClick={onClose}>
-            Abbrechen
+            Cancel
           </button>
-          <button className="primary-button">Speichern</button>
+          <button className="primary-button">Save</button>
         </div>
       </form>
     </Modal>

@@ -9,7 +9,7 @@ export async function resolveInside(root: string, relativePath: string): Promise
   const candidate = await realpath(path.resolve(canonicalRoot, relativePath || '.'))
   const relative = path.relative(canonicalRoot, candidate)
   if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
-    throw new Error('Der Pfad liegt außerhalb dieses Worktrees.')
+    throw new Error('The path is outside this worktree.')
   }
   return candidate
 }
@@ -34,7 +34,7 @@ export async function listFiles(root: string, relativePath: string): Promise<Fil
 export async function readPreview(root: string, relativePath: string): Promise<FilePreview> {
   const filename = await resolveInside(root, relativePath)
   const info = await stat(filename)
-  if (!info.isFile()) throw new Error('Dieser Eintrag ist keine reguläre Datei.')
+  if (!info.isFile()) throw new Error('This entry is not a regular file.')
   const file = await open(filename, 'r')
   try {
     const buffer = Buffer.alloc(Math.min(info.size, PREVIEW_LIMIT))

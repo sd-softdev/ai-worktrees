@@ -17,7 +17,7 @@ const resolveDirectory = (directory: string) =>
 
 function requireWorktree(directory: string) {
   const worktree = workspace?.worktrees.find((item) => item.path === directory && !item.missing)
-  if (!worktree) throw new Error('Unbekannter Remote-Worktree.')
+  if (!worktree) throw new Error('Unknown remote worktree.')
   return worktree
 }
 
@@ -41,7 +41,7 @@ async function dispatch(method: string, args: unknown[]): Promise<unknown> {
       workspace = await inspectWorkspace(resolveDirectory(directory))
       return workspace
     case 'create':
-      if (!workspace) throw new Error('Kein Remote-Workspace geöffnet.')
+      if (!workspace) throw new Error('No remote workspace is open.')
       return addWorktree(workspace, args[0] as string, args[1] as string)
     case 'remove': {
       const worktree = requireWorktree(directory)
@@ -58,7 +58,7 @@ async function dispatch(method: string, args: unknown[]): Promise<unknown> {
     case 'readFile':
       return readPreview(requireWorktree(directory).path, args[1] as string)
     default:
-      throw new Error('Unbekannte Remote-Operation.')
+      throw new Error('Unknown remote operation.')
   }
 }
 
@@ -67,7 +67,7 @@ if (
   Number(process.versions.node.split('.')[0]) < 20
 ) {
   process.stderr.write(
-    'Agent Workspace benötigt auf dem SSH-Host Linux/macOS und Node.js 20 oder neuer.\n',
+    'Agent Workspace requires Linux/macOS and Node.js 20 or later on the SSH host.\n',
   )
   process.exit(1)
 }
@@ -83,7 +83,7 @@ input.on('line', (line) => {
       typeof message.method !== 'string' ||
       !Array.isArray(message.args)
     )
-      throw new Error('Ungültige Anfrage.')
+      throw new Error('Invalid request.')
   } catch {
     return
   }

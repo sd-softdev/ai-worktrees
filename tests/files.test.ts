@@ -24,8 +24,8 @@ it('does not escape a worktree through traversal or symbolic links', async () =>
   // Directory junctions exercise the same boundary on Windows without requiring
   // Developer Mode or the privilege for creating file symlinks.
   await symlink(outside, path.join(root, 'link'), process.platform === 'win32' ? 'junction' : 'dir')
-  await expect(readPreview(root, '../outside/secret.txt')).rejects.toThrow('außerhalb')
-  await expect(readPreview(root, 'link/secret.txt')).rejects.toThrow('außerhalb')
+  await expect(readPreview(root, '../outside/secret.txt')).rejects.toThrow('outside')
+  await expect(readPreview(root, 'link/secret.txt')).rejects.toThrow('outside')
 })
 
 it('bounds large previews and detects binary contents', async () => {

@@ -27,7 +27,7 @@ export class SshAuthentication {
     this.tokens.set(token, { connection, host })
     const address = this.server!.address()
     if (!address || typeof address === 'string')
-      throw new Error('SSH-Authentifizierung nicht verfügbar.')
+      throw new Error('SSH authentication is unavailable.')
     return {
       SSH_ASKPASS: path.join(
         this.directory,

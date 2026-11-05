@@ -123,7 +123,7 @@ describe('Git worktree integration', () => {
     const workspace = await inspectWorkspace(repo)
     const worktree = workspace.worktrees.find((item) => item.path === created)!
     await writeFile(path.join(created, 'important.txt'), 'keep me')
-    await expect(removeWorktree(workspace, worktree)).rejects.toThrow('lokale Änderungen')
+    await expect(removeWorktree(workspace, worktree)).rejects.toThrow('local changes')
     await commit(created, 'Preserve work')
     await removeWorktree(workspace, worktree)
     expect((await inspectWorkspace(repo)).worktrees).toHaveLength(1)
@@ -133,7 +133,7 @@ describe('Git worktree integration', () => {
   it('rejects a checked-out branch and malformed branch names', async () => {
     const workspace = await inspectWorkspace(repo)
     await expect(addWorktree(workspace, 'main', 'main')).rejects.toThrow()
-    await expect(addWorktree(workspace, '--force', 'main')).rejects.toThrow('Ungültiger')
+    await expect(addWorktree(workspace, '--force', 'main')).rejects.toThrow('Invalid')
     await expect(addWorktree(workspace, '../bad', 'main')).rejects.toThrow()
     expect((await inspectWorkspace(repo)).worktrees).toHaveLength(1)
   })

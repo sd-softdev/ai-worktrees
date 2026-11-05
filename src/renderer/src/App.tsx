@@ -40,7 +40,7 @@ export function App() {
     (worktree) => worktree.path === preferences.activeWorktree,
   )
   const running = Object.values(terminals).filter((terminal) => terminal.state === 'running').length
-  const modifier = window.desktop.platform === 'darwin' ? '⌘' : 'Strg+'
+  const modifier = window.desktop.platform === 'darwin' ? '⌘' : 'Ctrl+'
 
   useEffect(() => {
     const resize = () => setWindowWidth(window.innerWidth)
@@ -108,7 +108,7 @@ export function App() {
           <Layers3 size={21} />
           <strong>Agent Workspace</strong>
           <span className="title-divider" />
-          <span className="tagline">Parallele Entwicklung. Ein Workspace.</span>
+          <span className="tagline">Parallel development. One workspace.</span>
         </div>
         <span className="local-badge">
           <span className="dot green" />
@@ -122,11 +122,11 @@ export function App() {
           onClick={() => void openWorkspace()}
         >
           <FolderOpen size={17} />
-          Workspace öffnen <span className="shortcut">{modifier}O</span>
+          Open workspace <span className="shortcut">{modifier}O</span>
         </button>
         <button className="secondary-button" disabled={loading} onClick={() => setSshDialog(true)}>
           <Server size={16} />
-          SSH verbinden
+          Connect via SSH
         </button>
         {workspace && (
           <>
@@ -140,8 +140,8 @@ export function App() {
             </div>
             <button
               className="icon-button refresh-workspace"
-              title="Workspace aktualisieren"
-              aria-label="Workspace aktualisieren"
+              title="Refresh workspace"
+              aria-label="Refresh workspace"
               onClick={() => void refreshWorkspace()}
             >
               <RefreshCw size={16} className={loading ? 'spinning' : ''} />
@@ -152,7 +152,7 @@ export function App() {
       {remoteStatus?.state === 'disconnected' && (
         <div className="remote-disconnected" role="status">
           <Unplug size={16} />
-          <span>SSH-Verbindung zu {remoteStatus.host} unterbrochen.</span>
+          <span>SSH connection to {remoteStatus.host} lost.</span>
           <button
             className="secondary-button"
             disabled={loading}
@@ -166,7 +166,7 @@ export function App() {
                 .finally(() => useApp.getState().setLoading(false))
             }}
           >
-            Wiederverbinden
+            Reconnect
           </button>
         </div>
       )}
@@ -175,7 +175,7 @@ export function App() {
           <span>{error}</span>
           <button
             className="icon-button"
-            aria-label="Fehlermeldung schließen"
+            aria-label="Dismiss error"
             onClick={() => useApp.getState().setError(null)}
           >
             <X size={16} />
@@ -188,7 +188,7 @@ export function App() {
             <WorktreeSidebar />
           </div>
           <ResizeHandle
-            label="Breite der Worktree-Leiste"
+            label="Worktree sidebar width"
             value={leftWidth}
             min={190}
             max={leftMax}
@@ -208,7 +208,7 @@ export function App() {
               ))}
           </div>
           <ResizeHandle
-            label="Breite der Git-Leiste"
+            label="Git sidebar width"
             value={rightWidth}
             min={260}
             max={rightMax}
@@ -226,16 +226,16 @@ export function App() {
             <div className="welcome-icon">
               <Layers3 size={42} strokeWidth={1.4} />
             </div>
-            <div className="eyebrow">DEIN PROJEKT. MEHRERE PERSPEKTIVEN.</div>
+            <div className="eyebrow">YOUR PROJECT. MULTIPLE PERSPECTIVES.</div>
             <h1>
-              Ein Workspace.
+              One workspace.
               <br />
-              <span>Viele Möglichkeiten.</span>
+              <span>Endless possibilities.</span>
             </h1>
             <p>
-              Gib jeder Aufgabe ihren eigenen Worktree.
+              Give every task its own worktree.
               <br />
-              Behalte deine Terminals, Agenten und Änderungen im Blick.
+              Keep your terminals, agents, and changes in view.
             </p>
             <button
               className="primary-button welcome-open"
@@ -243,33 +243,33 @@ export function App() {
               onClick={() => void openWorkspace()}
             >
               <FolderOpen size={18} />
-              {loading ? 'Workspace laden …' : 'Git-Repository öffnen'}
+              {loading ? 'Loading workspace …' : 'Open Git repository'}
               <ArrowUpRight size={17} />
             </button>
             <button className="welcome-ssh" disabled={loading} onClick={() => setSshDialog(true)}>
               <Server size={14} />
-              Mit SSH-Host verbinden
+              Connect to SSH host
               <ChevronRight size={13} />
             </button>
             <div className="welcome-shortcut">
               <Command size={12} />
-              <span>{modifier}O zum Öffnen</span>
+              <span>{modifier}O to open</span>
             </div>
             <div className="welcome-features">
               <div>
                 <GitBranch size={19} />
-                <strong>Getrennte Worktrees</strong>
-                <span>Ein Branch pro Aufgabe</span>
+                <strong>Separate worktrees</strong>
+                <span>One branch per task</span>
               </div>
               <div>
                 <TerminalSquare size={19} />
-                <strong>Echte Terminals</strong>
-                <span>Deine Shell. Deine Agenten.</span>
+                <strong>Real terminals</strong>
+                <span>Your shell. Your agents.</span>
               </div>
               <div>
                 <Layers3 size={19} />
-                <strong>Alles im Kontext</strong>
-                <span>Änderungen direkt prüfen</span>
+                <strong>Everything in context</strong>
+                <span>Review changes in place</span>
               </div>
             </div>
           </div>
@@ -286,25 +286,27 @@ export function App() {
               <span>{active?.branch ?? 'Detached HEAD'}</span>
               <span className="status-divider" />
               {active?.changedFiles ? (
-                <span className="yellow-text">{active.changedFiles} Änderungen</span>
+                <span className="yellow-text">
+                  {active.changedFiles} changed {active.changedFiles === 1 ? 'file' : 'files'}
+                </span>
               ) : active?.statusError ? (
-                <span>Git-Status nicht verfügbar</span>
+                <span>Git status unavailable</span>
               ) : (
                 <>
                   <Check size={13} className="green-text" />
-                  <span>Arbeitsverzeichnis sauber</span>
+                  <span>Working directory clean</span>
                 </>
               )}
             </>
           ) : (
-            <span>Bereit für deinen Workspace</span>
+            <span>Ready for your workspace</span>
           )}
         </div>
         <div>
           <TerminalSquare size={13} />
           <span>Shells</span>
           <span className={`dot ${running ? 'green' : ''}`} />
-          <span>{running} aktiv</span>
+          <span>{running} active</span>
           <span className="status-divider" />
           <span>
             {window.desktop.platform === 'darwin'

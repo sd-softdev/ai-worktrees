@@ -260,11 +260,11 @@ svg {
   background: linear-gradient(120deg, #131621, #10131b);
 }
 .repository-card {
-  padding: 23px 18px 19px;
+  padding: 16px 14px 13px;
   display: flex;
   align-items: flex-start;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   border-bottom: 1px solid var(--border);
 }
 .repository-heading {
@@ -275,7 +275,7 @@ svg {
   margin-bottom: 3px;
 }
 .repository-heading strong {
-  font-size: 17px;
+  font-size: 15px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -299,14 +299,14 @@ svg {
   color: #9aa2b5;
   border-radius: 4px;
   background: #1b202e;
-  padding: 6px 7px;
-  margin-top: 8px;
+  padding: 4px 6px;
+  margin-top: 5px;
 }
 .convention code {
   color: #ad8ee4;
 }
 .sidebar-heading {
-  padding: 20px 18px 12px;
+  padding: 14px 14px 9px;
 }
 .sidebar-heading h2 {
   display: flex;
@@ -323,7 +323,9 @@ svg {
   font-weight: 500;
 }
 .new-worktree {
-  margin: 0 17px 16px;
+  margin: 0 13px 10px;
+  min-height: 32px;
+  padding: 7px 10px;
 }
 .worktree-list {
   overflow-y: auto;
@@ -352,13 +354,13 @@ svg {
   display: block;
   text-align: left;
   width: 100%;
-  padding: 13px 10px 11px 12px;
+  padding: 9px 9px 8px 11px;
 }
 .worktree-name {
   display: flex;
   gap: 8px;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 5px;
 }
 .worktree-name strong {
   overflow: hidden;
@@ -384,12 +386,12 @@ svg {
   align-items: center;
   color: #9ba0b2;
   font-size: 10px;
-  margin-bottom: 9px;
+  margin-bottom: 5px;
 }
 .worktree-task {
   font-size: 11px;
   color: #d1c7e0;
-  margin-bottom: 12px;
+  margin-bottom: 7px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -446,7 +448,7 @@ svg {
   align-items: center;
   color: #828c9e;
   font-size: 10px;
-  margin-top: 11px;
+  margin-top: 6px;
   height: 14px;
 }
 .changed-dot {
@@ -476,7 +478,7 @@ svg {
   gap: 7px;
   font-size: 10px;
   color: #8590a4;
-  padding: 13px 17px;
+  padding: 10px 14px;
   border-top: 1px solid var(--border);
 }
 .version {
@@ -1335,6 +1337,15 @@ svg {
 .ssh-prompt-text {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.form-stack .inline-error {
+  white-space: pre-wrap;
+}
+
+.ssh-advanced p {
+  line-height: 1.6;
+  margin: 10px 0;
 }
 .ssh-prompt-icon {
   color: var(--purple);

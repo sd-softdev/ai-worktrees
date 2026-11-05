@@ -24,7 +24,7 @@ export class SettingsStore {
       return preferencesSchema.parse(JSON.parse(await readFile(this.filename(commonDir), 'utf8')))
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        console.warn('Workspace-Einstellungen konnten nicht geladen werden:', error)
+        console.warn('Could not load workspace settings:', error)
       }
       return defaultPreferences()
     }

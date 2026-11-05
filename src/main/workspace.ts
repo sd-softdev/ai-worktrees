@@ -25,14 +25,14 @@ export class WorkspaceService {
   }
 
   requireWorkspace(): Workspace {
-    if (!this.current) throw new Error('Bitte zuerst einen Workspace öffnen.')
+    if (!this.current) throw new Error('Please open a workspace first.')
     return this.current
   }
 
   requireWorktree(worktreePath: string) {
     const worktree = this.requireWorkspace().worktrees.find((item) => item.path === worktreePath)
-    if (!worktree) throw new Error('Dieser Worktree gehört nicht zum geöffneten Workspace.')
-    if (worktree.missing) throw new Error('Das Worktree-Verzeichnis ist nicht vorhanden.')
+    if (!worktree) throw new Error('This worktree does not belong to the open workspace.')
+    if (worktree.missing) throw new Error('The worktree directory does not exist.')
     return worktree
   }
 
@@ -81,7 +81,7 @@ export class WorkspaceService {
   async remove(worktreePath: string): Promise<Workspace> {
     const worktree = this.requireWorktree(worktreePath)
     if (this.terminals.hasRunning(worktreePath)) {
-      throw new Error('Bitte zuerst die laufenden Terminals dieses Worktrees schließen.')
+      throw new Error('Please close the running terminals in this worktree first.')
     }
     await this.backend.remove(this.requireWorkspace(), worktree)
     return this.refresh()

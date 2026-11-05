@@ -23,8 +23,7 @@ export async function git(cwd: string, args: string[]): Promise<string> {
     return stdout
   } catch (error) {
     const failure = error as NodeJS.ErrnoException & { stderr?: string }
-    if (failure.code === 'ENOENT')
-      throw new Error('Git wurde nicht gefunden. Bitte Git installieren.')
+    if (failure.code === 'ENOENT') throw new Error('Git was not found. Please install Git.')
     throw new Error(failure.stderr?.trim() || failure.message)
   }
 }
@@ -71,7 +70,7 @@ export async function changes(cwd: string): Promise<ChangedFile[]> {
 export async function inspectWorkspace(directory: string): Promise<Workspace> {
   const selectedPath = await realpath(directory)
   if ((await git(selectedPath, ['rev-parse', '--is-bare-repository'])).trim() === 'true') {
-    throw new Error('Bitte ein ausgechecktes Repository öffnen, kein Bare-Repository.')
+    throw new Error('Please open a checked-out repository, not a bare repository.')
   }
   const commonDir = await realpath(
     (await git(selectedPath, ['rev-parse', '--path-format=absolute', '--git-common-dir'])).trim(),
@@ -79,7 +78,7 @@ export async function inspectWorkspace(directory: string): Promise<Workspace> {
   const worktrees = parseWorktrees(
     await git(selectedPath, ['worktree', 'list', '--porcelain', '-z']),
   )
-  if (!worktrees.length) throw new Error('Das Repository enthält keine Worktrees.')
+  if (!worktrees.length) throw new Error('The repository has no worktrees.')
 
   // Bound parallel Git processes when a repository has many worktrees.
   for (let i = 0; i < worktrees.length; i += 4) {
@@ -131,7 +130,7 @@ export async function addWorktree(
   branch: string,
   base: string,
 ): Promise<string> {
-  if (branch.startsWith('-') || branch !== branch.trim()) throw new Error('Ungültiger Branch-Name.')
+  if (branch.startsWith('-') || branch !== branch.trim()) throw new Error('Invalid branch name.')
   await git(workspace.rootPath, ['check-ref-format', '--branch', branch])
   const commit = (
     await git(workspace.rootPath, ['rev-parse', '--verify', '--end-of-options', `${base}^{commit}`])
@@ -152,11 +151,12 @@ export async function addWorktree(
 }
 
 export async function removeWorktree(workspace: Workspace, worktree: Worktree): Promise<void> {
-  if (worktree.isMain) throw new Error('Der Haupt-Worktree kann nicht entfernt werden.')
-  if (worktree.locked) throw new Error('Dieser Worktree ist in Git gesperrt.')
-  if (worktree.missing) throw new Error('Der Worktree fehlt. Bitte den Eintrag mit Git bereinigen.')
+  if (worktree.isMain) throw new Error('The main worktree cannot be removed.')
+  if (worktree.locked) throw new Error('This worktree is locked in Git.')
+  if (worktree.missing)
+    throw new Error('The worktree is missing. Please prune its entry using Git.')
   if ((await changes(worktree.path)).length) {
-    throw new Error('Der Worktree hat lokale Änderungen. Bitte zuerst committen oder sichern.')
+    throw new Error('The worktree has local changes. Please commit or save them first.')
   }
   if (!worktree.branch) {
     const refs = await git(worktree.path, [
@@ -165,7 +165,7 @@ export async function removeWorktree(workspace: Workspace, worktree: Worktree): 
       '--format=%(refname)',
     ])
     if (!refs.trim())
-      throw new Error('Der Detached-HEAD-Commit ist durch keinen Branch oder Tag gesichert.')
+      throw new Error('The detached HEAD commit is not reachable from a branch or tag.')
   }
   // Git performs its own dirty check too. Keep the branch and all its commits.
   await git(workspace.rootPath, ['worktree', 'remove', '--', worktree.path])
@@ -201,7 +201,7 @@ export async function history(cwd: string): Promise<Commit[]> {
 export async function diff(cwd: string, request: DiffRequest): Promise<string> {
   const options = ['--no-ext-diff', '--no-textconv', '--no-color', '--find-renames']
   if (request.kind === 'commit') {
-    if (!/^[0-9a-f]{40,64}$/i.test(request.hash)) throw new Error('Ungültiger Commit.')
+    if (!/^[0-9a-f]{40,64}$/i.test(request.hash)) throw new Error('Invalid commit.')
     return git(cwd, ['show', '--format=fuller', ...options, request.hash, '--'])
   }
   if (request.kind === 'branch') {

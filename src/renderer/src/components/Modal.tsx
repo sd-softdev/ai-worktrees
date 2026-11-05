@@ -30,7 +30,7 @@ export function Modal({
     >
       <div className="modal-header">
         <h2>{title}</h2>
-        <button className="icon-button" aria-label="Dialog schließen" onClick={onClose}>
+        <button className="icon-button" aria-label="Close dialog" onClick={onClose}>
           <X size={18} />
         </button>
       </div>

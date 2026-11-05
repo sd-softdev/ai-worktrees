@@ -94,14 +94,14 @@ export function SshConnectionDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal
-      title={directory ? `Remote-Ordner öffnen · ${host}` : 'Mit SSH-Host verbinden'}
+      title={directory ? `Open remote folder · ${host}` : 'Connect to SSH host'}
       onClose={onClose}
     >
       {!directory ? (
         <form onSubmit={(event) => void connect(event)}>
           <div className="modal-body form-stack">
             <p className="muted">
-              Wähle einen Host aus deiner SSH-Konfiguration oder gib eine SSH-Adresse ein.
+              Choose a host from your SSH configuration or enter an SSH address.
             </p>
             {hosts.length > 0 && (
               <div className="ssh-host-list">
@@ -121,33 +121,48 @@ export function SshConnectionDialog({ onClose }: { onClose: () => void }) {
               </div>
             )}
             <label>
-              SSH-Host
+              SSH host
               <input
                 required
                 autoFocus
                 value={host}
                 disabled={busy}
-                placeholder="dev-server oder user@hostname"
+                placeholder="dev-server or user@hostname"
                 onChange={(event) => setHost(event.target.value)}
               />
             </label>
             <details className="ssh-advanced">
-              <summary>Remote-Laufzeit</summary>
+              <summary>Remote runtime</summary>
               <label>
-                Node.js auf dem Remote-Host
+                Node.js on the remote host
                 <input
                   value={nodePath}
                   disabled={busy}
-                  placeholder="node oder /usr/local/bin/node"
+                  placeholder="node or /usr/local/bin/node"
                   onChange={(event) => setNodePath(event.target.value)}
                 />
               </label>
+              <p>
+                Requires Node.js 20+ on the host. If installed through nvm, use the absolute path
+                reported by <code>command -v node</code> in your remote terminal.
+              </p>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() =>
+                  void window.desktop
+                    .openExternal('https://nodejs.org/en/download')
+                    .catch((error) => setError(errorMessage(error)))
+                }
+              >
+                Node.js installation guide
+              </button>
             </details>
             <div className="hint">
               <KeyRound size={15} />
               <span>
-                Verwendet OpenSSH mit deinen Schlüsseln, SSH-Agent und ProxyJump-Einstellungen. Auf
-                dem Remote-Host werden Git und Node.js 20+ benötigt (Linux/macOS).
+                Uses OpenSSH with your keys, SSH agent, and ProxyJump settings. The remote host
+                requires Git and Node.js 20+ (Linux/macOS).
               </span>
             </div>
             {error && (
@@ -158,11 +173,11 @@ export function SshConnectionDialog({ onClose }: { onClose: () => void }) {
           </div>
           <div className="modal-footer">
             <button type="button" className="secondary-button" onClick={onClose}>
-              Abbrechen
+              Cancel
             </button>
             <button className="primary-button" disabled={busy || !host.trim()}>
               {busy ? <LoaderCircle size={15} className="spinning" /> : <Server size={15} />}
-              {busy ? 'Verbinden …' : 'Verbinden'}
+              {busy ? 'Connecting …' : 'Connect'}
             </button>
           </div>
         </form>
@@ -171,7 +186,7 @@ export function SshConnectionDialog({ onClose }: { onClose: () => void }) {
           <div className="modal-body form-stack">
             <div className="ssh-connected">
               <span className="dot green" />
-              Verbunden mit <strong>{host}</strong>
+              Connected to <strong>{host}</strong>
             </div>
             <form
               className="remote-path"
@@ -181,13 +196,13 @@ export function SshConnectionDialog({ onClose }: { onClose: () => void }) {
               }}
             >
               <input
-                aria-label="Remote-Pfad"
+                aria-label="Remote path"
                 value={remotePath}
                 disabled={busy}
                 onChange={(event) => setRemotePath(event.target.value)}
               />
               <button className="secondary-button" disabled={busy}>
-                Öffnen
+                Open
               </button>
             </form>
             <div className="remote-folder-actions">
@@ -197,13 +212,13 @@ export function SshConnectionDialog({ onClose }: { onClose: () => void }) {
                 onClick={() => void browse(directory.parent)}
               >
                 <ArrowUp size={14} />
-                Übergeordnet
+                Parent folder
               </button>
               <button
                 className="icon-button"
                 disabled={busy}
-                title="Remote-Home"
-                aria-label="Remote-Home"
+                title="Remote home"
+                aria-label="Remote home"
                 onClick={() => void browse(directory.home)}
               >
                 <Home size={16} />
@@ -225,12 +240,11 @@ export function SshConnectionDialog({ onClose }: { onClose: () => void }) {
                 </button>
               ))}
               {directory.directories.length === 0 && (
-                <span className="muted small">Keine Unterordner</span>
+                <span className="muted small">No subfolders</span>
               )}
             </div>
             <p className="muted small">
-              Wähle ein ausgechecktes Git-Repository. Worktrees, Dateien und Terminals werden auf
-              diesem Host ausgeführt.
+              Choose a checked-out Git repository. Worktrees, files, and terminals run on this host.
             </p>
             {error && (
               <div className="inline-error" role="alert">
@@ -240,7 +254,7 @@ export function SshConnectionDialog({ onClose }: { onClose: () => void }) {
           </div>
           <div className="modal-footer">
             <button className="secondary-button" onClick={onClose}>
-              Abbrechen
+              Cancel
             </button>
             <button
               className="primary-button"
@@ -248,7 +262,7 @@ export function SshConnectionDialog({ onClose }: { onClose: () => void }) {
               onClick={() => void open()}
             >
               <Folder size={15} />
-              Repository öffnen
+              Open repository
             </button>
           </div>
         </>
@@ -307,7 +321,7 @@ function AuthenticationPrompt({
           <p className="ssh-prompt-text">{prompt.prompt}</p>
           {!prompt.confirmation && (
             <label>
-              Passwort / Passphrase
+              Password / passphrase
               <input
                 autoFocus
                 type="password"
@@ -320,10 +334,10 @@ function AuthenticationPrompt({
         </div>
         <div className="modal-footer">
           <button type="button" className="secondary-button" onClick={() => onAnswer(null)}>
-            Abbrechen
+            Cancel
           </button>
           <button className="primary-button">
-            {prompt.confirmation ? 'Host vertrauen' : 'Bestätigen'}
+            {prompt.confirmation ? 'Trust host' : 'Confirm'}
           </button>
         </div>
       </form>

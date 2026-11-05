@@ -6,7 +6,7 @@ A desktop workspace for parallel development with Git worktrees, locally or over
 
 ## Installation
 
-[**Download v0.2.0**](https://github.com/sd-softdev/ai-worktrees/releases/tag/v0.2.0), featuring SSH workspaces and turnkey installers. All four platform builds passed their packaged-app and installation tests in the [release pipeline](https://github.com/sd-softdev/ai-worktrees/actions/runs/41925926785). Installation from the public release was also verified on macOS ARM64.
+[**Download the latest release**](https://github.com/sd-softdev/ai-worktrees/releases/latest), featuring an English interface, SSH workspaces, and turnkey installers. The [release pipeline](https://github.com/sd-softdev/ai-worktrees/actions/workflows/build.yml) tests the packaged and installed app on all four supported platforms before publishing.
 
 The scripts download the appropriate package from the [latest GitHub release](https://github.com/sd-softdev/ai-worktrees/releases/latest), verify its SHA-256 checksum, and install the app. Node.js is only required locally when developing the app. Local repositories require Git; SSH connections require the OpenSSH client.
 
@@ -23,7 +23,7 @@ curl -fsSL https://github.com/sd-softdev/ai-worktrees/releases/latest/download/i
 Pass options using `bash -s --`, for example to install the portable Linux package:
 
 ```bash
-curl -fsSL https://github.com/sd-softdev/ai-worktrees/releases/latest/download/install.sh | bash -s -- --portable --version v0.2.0
+curl -fsSL https://github.com/sd-softdev/ai-worktrees/releases/latest/download/install.sh | bash -s -- --portable --version v0.2.1
 ```
 
 Use `--install-dir DIRECTORY` to choose the destination for macOS or AppImage installations. `--dry-run` displays the selected package. To update, close the app and run the script again.
@@ -36,18 +36,18 @@ Invoke-WebRequest -UseBasicParsing 'https://github.com/sd-softdev/ai-worktrees/r
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installer
 ```
 
-Installs using NSIS to `%LOCALAPPDATA%\Programs\Agent Workspace`. Supports Windows PowerShell 5.1 and PowerShell 7. Optional parameters include `-Version v0.2.0`, `-InstallDirectory 'C:\Apps\Agent Workspace'`, and `-DryRun`.
+Installs using NSIS to `%LOCALAPPDATA%\Programs\Agent Workspace`. Supports Windows PowerShell 5.1 and PowerShell 7. Optional parameters include `-Version v0.2.1`, `-InstallDirectory 'C:\Apps\Agent Workspace'`, and `-DryRun`.
 
 ### Offline installation
 
 Download the appropriate package, `SHA256SUMS`, and installation script from the same release:
 
 ```bash
-bash install.sh --version v0.2.0 --asset ./agent-workspace-0.2.0-mac-arm64.dmg --checksums ./SHA256SUMS
+bash install.sh --version v0.2.1 --asset ./agent-workspace-0.2.1-mac-arm64.dmg --checksums ./SHA256SUMS
 ```
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Version v0.2.0 -InstallerPath .\agent-workspace-0.2.0-win-x64.exe -ChecksumPath .\SHA256SUMS
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Version v0.2.1 -InstallerPath .\agent-workspace-0.2.1-win-x64.exe -ChecksumPath .\SHA256SUMS
 ```
 
 ## Development setup
@@ -63,7 +63,7 @@ npm ci
 npm run dev
 ```
 
-The app's interface currently uses German labels. Select **Workspace öffnen** (Open workspace) to open a checked-out Git repository. The app also discovers worktrees outside the repository directory. New worktrees are created under `.worktrees/` by default; this directory is ignored through Git's local exclude file.
+Select **Open workspace** to open a checked-out Git repository. The app also discovers worktrees outside the repository directory. New worktrees are created under `.worktrees/` by default; this directory is ignored through Git's local exclude file.
 
 ## Features
 
@@ -79,7 +79,7 @@ The app's interface currently uses German labels. Select **Workspace öffnen** (
 
 Terminals start in their respective worktrees. Run regular CLI programs such as `opencode`, build commands, and development servers there. Clicking a terminal's close button terminates its process.
 
-Git status and the file tree refresh every five seconds and whenever the window gains focus. Large previews are limited in size; terminal scrollback is limited to 8,000 lines.
+Git status and the file tree refresh silently in the background every five seconds and whenever the window gains focus. Existing content stays visible while refreshing. Large previews are limited in size; terminal scrollback is limited to 8,000 lines.
 
 ### Working over SSH
 
@@ -93,13 +93,17 @@ Git status and the file tree refresh every five seconds and whenever the window 
      IdentityFile ~/.ssh/id_ed25519
    ```
 
-3. Click **SSH verbinden** (Connect via SSH), then select a configured host or enter `user@hostname`. Configure nonstandard ports and jump hosts using `Port` and `ProxyJump` in your SSH configuration.
+3. Click **Connect via SSH**, then select a configured host or enter `user@hostname`. Configure nonstandard ports and jump hosts using `Port` and `ProxyJump` in your SSH configuration.
 4. Confirm the host fingerprint and enter your password or passphrase if prompted. The app uses system OpenSSH, your SSH agent, and standard `known_hosts` verification. Credentials are not stored.
-5. Select the remote repository directory and click **Repository öffnen** (Open repository). If needed, specify an absolute Node.js path under **Remote-Laufzeit** (Remote runtime).
+5. Select the remote repository directory and click **Open repository**. If needed, specify an absolute Node.js path under **Remote runtime**.
+
+The connection checks for Node.js 20+ and Git before starting the remote helper. Missing or outdated Node.js produces installation instructions instead of a shell or JavaScript error. Install Node.js on the host using the [official installation guide](https://nodejs.org/en/download), `nvm install --lts` if nvm is already installed, or `brew install node` on macOS with Homebrew. Then reconnect. If Node.js is already available in an interactive terminal, run `command -v node` there and enter that absolute path under **Remote runtime**.
+
+On Windows, enable **OpenSSH Client** in **Settings → Optional features** if needed, then restart the app. The app resolves the full `ssh.exe` path for both Git/file connections and terminals.
 
 Git and file operations use a bundled helper streamed to Node.js on the host for each connection. No separate agent installation is required. Terminals connect over SSH in the corresponding remote worktree. On macOS/Linux, terminals share the authenticated OpenSSH connection; Windows may display additional authentication prompts.
 
-If the connection drops, click **Wiederverbinden** (Reconnect). The workspace and layout are restored with **new shells**; existing remote processes are not automatically reattached. For long-lived sessions, you can use a tool such as `tmux` inside the terminal. Local and remote repositories have separate layout profiles.
+If the connection drops, click **Reconnect**. The workspace and layout are restored with **new shells**; existing remote processes are not automatically reattached. For long-lived sessions, you can use a tool such as `tmux` inside the terminal. Local and remote repositories have separate layout profiles.
 
 ### Keyboard shortcuts
 
@@ -130,6 +134,7 @@ npm run dist:win
 npm run dist:linux
 npm run test:packaged
 npm run test:ssh
+npm run test:ssh-client
 npm run test:install
 ```
 
@@ -138,6 +143,7 @@ npm run test:install
 - `pack` creates an app directory under `dist/`. `test:packaged` automatically locates its executable for the current platform.
 - Run distribution commands on their target operating system so that `node-pty` is built and tested for that system.
 - `test:ssh` starts an isolated local OpenSSH server and checks host trust, encrypted keys, remote Git/file/worktree operations, terminal continuity, and reconnect. It requires `sshd` and a previously packaged app. Linux CI runs it with `AGENT_WORKSPACE_TEST_SSHD_SUDO=1`.
+- `test:ssh-client` launches the real OpenSSH client through the app's terminal service using Electron's native PTY runtime. Windows CI also checks executable lookup in a final PATH entry containing spaces.
 - `test:install` requires a previously built installer for the current version. It checks rejection of invalid checksums, installs to a temporary destination (system-wide for DEB), and runs the installed app through the desktop test. Windows/Linux require an isolated CI runner for this test.
 - macOS and Windows builds are currently unsigned; macOS builds are not notarized.
 - `node-pty` is built for the Electron version during dependency installation. After upgrading Electron, run `npm run postinstall` if needed.
@@ -148,7 +154,7 @@ npm run test:install
 | `npm run dist:win`   | Windows x64                 | `.exe` (NSIS installer) |
 | `npm run dist:linux` | Linux x64                   | `.AppImage`, `.deb`     |
 
-Examples: `dist/agent-workspace-0.2.0-linux-x86_64.AppImage` and `dist/agent-workspace-0.2.0-linux-amd64.deb`. Both Linux packages target x64. AppImages may additionally require FUSE 2 (`libfuse2t64` on Ubuntu 24.04). Make the AppImage executable before launching it.
+Examples: `dist/agent-workspace-0.2.1-linux-x86_64.AppImage` and `dist/agent-workspace-0.2.1-linux-amd64.deb`. Both Linux packages target x64. AppImages may additionally require FUSE 2 (`libfuse2t64` on Ubuntu 24.04). Make the AppImage executable before launching it.
 
 Set `AGENT_WORKSPACE_EXECUTABLE` to test a different app executable. Use Xvfb for headless Linux tests:
 
@@ -169,7 +175,7 @@ The [desktop pipeline](https://github.com/sd-softdev/ai-worktrees/actions/workfl
 
 Each job runs `npm ci`, checks formatting, runs integration tests, builds the installers, and launches the **packaged app** in the desktop smoke test. It then tests the turnkey scripts, including actual installation and launch of the installed app. Linux also runs the SSH end-to-end test. Installers are uploaded as `installers-*` artifacts only after the tests pass; screenshots and logs are available as `diagnostics-*`. Artifacts are retained for seven days.
 
-A tag such as `v0.2.0`, matching the version in `package.json`, automatically publishes a [GitHub release](https://github.com/sd-softdev/ai-worktrees/releases) after all four builds succeed. Releases include the packages, `install.sh`, `install.ps1`, and `SHA256SUMS`. Regular branch builds produce workflow artifacts.
+A tag such as `v0.2.1`, matching the version in `package.json`, automatically publishes a [GitHub release](https://github.com/sd-softdev/ai-worktrees/releases) after all four builds succeed. Releases include the packages, `install.sh`, `install.ps1`, and `SHA256SUMS`. Regular branch builds produce workflow artifacts.
 
 ## Project structure
 

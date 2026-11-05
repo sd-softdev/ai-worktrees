@@ -5,7 +5,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Columns2, Rows2, Plus, TerminalSquare, X, RotateCw } from 'lucide-react'
 import { leaves } from '../../../shared/layout'
 import type { SequencedTerminalEvent, TerminalLayout, TerminalLeaf } from '../../../shared/types'
-import { useApp } from '../store'
+import { errorMessage, useApp } from '../store'
 import { ResizeHandle } from './ResizeHandle'
 import '@xterm/xterm/css/xterm.css'
 
@@ -26,7 +26,7 @@ export function TerminalWorkspace({ worktree, visible }: { worktree: string; vis
   }
   return (
     <section className="terminal-workspace" hidden={!visible} aria-label={`Terminals ${worktree}`}>
-      <div className="terminal-tabs" role="tablist" aria-label="Terminal-Tabs">
+      <div className="terminal-tabs" role="tablist" aria-label="Terminal tabs">
         {tabs.map((tab) => (
           <div
             key={tab.id}
@@ -35,7 +35,7 @@ export function TerminalWorkspace({ worktree, visible }: { worktree: string; vis
             {renaming === tab.id ? (
               <input
                 className="tab-name-input"
-                aria-label="Terminal-Name"
+                aria-label="Terminal name"
                 autoFocus
                 value={name}
                 maxLength={160}
@@ -65,7 +65,7 @@ export function TerminalWorkspace({ worktree, visible }: { worktree: string; vis
             )}
             <button
               className="tab-close"
-              aria-label={`${tab.title} schließen`}
+              aria-label={`Close ${tab.title}`}
               onClick={() =>
                 void useApp.getState().closeTab(worktree, tab.id).catch(useApp.getState().setError)
               }
@@ -76,8 +76,8 @@ export function TerminalWorkspace({ worktree, visible }: { worktree: string; vis
         ))}
         <button
           className="icon-button add-tab"
-          title="Neues Terminal (⌘T / Strg+T)"
-          aria-label="Neues Terminal"
+          title="New terminal (⌘T / Ctrl+T)"
+          aria-label="New terminal"
           onClick={() => useApp.getState().addTerminal(worktree)}
         >
           <Plus size={17} />
@@ -87,14 +87,14 @@ export function TerminalWorkspace({ worktree, visible }: { worktree: string; vis
         {tabs.length === 0 && (
           <div className="empty-terminal">
             <TerminalSquare size={36} />
-            <h2>Platz für deine nächste Aufgabe</h2>
-            <p>Starte eine Shell und öffne deinen Agenten oder Entwicklungsserver.</p>
+            <h2>Room for your next task</h2>
+            <p>Start a shell and launch your agent or development server.</p>
             <button
               className="primary-button"
               onClick={() => useApp.getState().addTerminal(worktree)}
             >
               <Plus size={16} />
-              Terminal öffnen
+              Open terminal
             </button>
           </div>
         )}
@@ -151,7 +151,7 @@ function LayoutNode({
         />
       </div>
       <ResizeHandle
-        label="Terminal-Aufteilung"
+        label="Terminal split"
         direction={layout.direction}
         value={size * layout.ratio}
         min={size * 0.1}
@@ -255,7 +255,7 @@ function TerminalPane({
         })
       else {
         useApp.getState().setTerminalState(leaf.id, { state: 'exited', exitCode: event.exitCode })
-        terminal.write(`\r\n\x1b[90m[Prozess beendet · Exit ${event.exitCode ?? '?'}]\x1b[0m\r\n`)
+        terminal.write(`\r\n\x1b[90m[Process exited · Exit ${event.exitCode ?? '?'}]\x1b[0m\r\n`)
       }
     }
     const unsubscribe = window.desktop.onTerminalEvent((event) => {
@@ -293,7 +293,7 @@ function TerminalPane({
       })
       .catch((error) => {
         if (disposed) return
-        setFailure(String(error))
+        setFailure(errorMessage(error))
         useApp.getState().setTerminalState(leaf.id, { state: 'error' })
       })
     return () => {
@@ -334,18 +334,18 @@ function TerminalPane({
             {status?.state === 'exited'
               ? `Exit ${status.exitCode ?? '?'}`
               : status?.state === 'error'
-                ? 'Fehler'
+                ? 'Error'
                 : status?.state === 'running'
-                  ? 'Läuft'
-                  : 'Startet …'}
+                  ? 'Running'
+                  : 'Starting …'}
           </span>
         </div>
         <div className="pane-actions">
           {['exited', 'error'].includes(status?.state ?? '') && (
             <button
               className="icon-button"
-              aria-label="Shell neu starten"
-              title="Shell neu starten"
+              aria-label="Restart shell"
+              title="Restart shell"
               onClick={() => void restart().catch(setError)}
             >
               <RotateCw size={14} />
@@ -353,24 +353,24 @@ function TerminalPane({
           )}
           <button
             className="icon-button"
-            aria-label="Terminal nebeneinander teilen"
-            title="Nebeneinander teilen (⌘D / Strg+D)"
+            aria-label="Split terminal side by side"
+            title="Split side by side (⌘D / Ctrl+D)"
             onClick={() => useApp.getState().splitTerminal(worktree, leaf.id, 'horizontal')}
           >
             <Columns2 size={14} />
           </button>
           <button
             className="icon-button"
-            aria-label="Terminal untereinander teilen"
-            title="Untereinander teilen (⌘⇧D / Strg+Umschalt+D)"
+            aria-label="Split terminal top and bottom"
+            title="Split top and bottom (⌘⇧D / Ctrl+Shift+D)"
             onClick={() => useApp.getState().splitTerminal(worktree, leaf.id, 'vertical')}
           >
             <Rows2 size={14} />
           </button>
           <button
             className="icon-button"
-            aria-label="Terminal schließen"
-            title="Terminalprozess beenden"
+            aria-label="Close terminal"
+            title="Stop terminal process"
             onClick={() => void useApp.getState().closeTerminal(worktree, leaf.id).catch(setError)}
           >
             <X size={14} />

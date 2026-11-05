@@ -25,6 +25,7 @@ import {
 if (process.env.AGENT_WORKSPACE_USER_DATA)
   app.setPath('userData', process.env.AGENT_WORKSPACE_USER_DATA)
 app.setName('Agent Workspace')
+app.commandLine.appendSwitch('lang', 'en-US')
 
 let window: BrowserWindow | null = null
 let closing = false
@@ -66,7 +67,7 @@ function remoteBackend(input: SshConnectInput): SshBackend {
 
 function requirePending(id: string): SshBackend {
   if (!pendingRemote || pendingRemote.connection.id !== id)
-    throw new Error('SSH-Verbindung nicht mehr verfügbar.')
+    throw new Error('SSH connection is no longer available.')
   return pendingRemote
 }
 
@@ -87,7 +88,7 @@ function trusted(event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent): vo
     event.sender !== window.webContents ||
     event.senderFrame !== window.webContents.mainFrame
   ) {
-    throw new Error('Unbekannter IPC-Absender.')
+    throw new Error('Unknown IPC sender.')
   }
 }
 
@@ -102,10 +103,9 @@ async function confirmWorkspaceSwitch(): Promise<boolean> {
   if (!terminals.hasRunning() || !window) return true
   const result = await dialog.showMessageBox(window, {
     type: 'question',
-    message: 'Workspace wechseln?',
-    detail:
-      'Die laufenden Terminals des aktuellen Workspace werden beendet. Das Layout bleibt gespeichert.',
-    buttons: ['Abbrechen', 'Workspace wechseln'],
+    message: 'Switch workspace?',
+    detail: 'Running terminals in the current workspace will be stopped. The layout will be saved.',
+    buttons: ['Cancel', 'Switch workspace'],
     defaultId: 0,
     cancelId: 0,
   })
@@ -138,7 +138,7 @@ function registerIpc(): void {
     workspace.serialize(async () => {
       if (!window) return null
       const result = await dialog.showOpenDialog(window, {
-        title: 'Git-Repository öffnen',
+        title: 'Open Git repository',
         properties: ['openDirectory'],
       })
       if (result.canceled || !result.filePaths[0] || !(await confirmWorkspaceSwitch())) return null
@@ -184,7 +184,7 @@ function registerIpc(): void {
   handle('ssh:reconnect', () =>
     workspace.serialize(async () => {
       const current = workspace.requireWorkspace()
-      if (!current.remote) throw new Error('Kein SSH-Workspace geöffnet.')
+      if (!current.remote) throw new Error('No SSH workspace is open.')
       return restoreRemote({ ...current.remote, path: current.rootPath })
     }),
   )
@@ -260,7 +260,7 @@ function registerIpc(): void {
   handle('external:open', (value) => {
     const url = new URL(z.string().max(8192).parse(value))
     if (!['https:', 'http:'].includes(url.protocol))
-      throw new Error('Nur HTTP-Links werden unterstützt.')
+      throw new Error('Only HTTP and HTTPS links are supported.')
     return shell.openExternal(url.toString())
   })
 }
@@ -299,10 +299,10 @@ function createWindow(): void {
       if (terminals.hasRunning() && window) {
         const result = await dialog.showMessageBox(window, {
           type: 'question',
-          message: 'Agent Workspace schließen?',
+          message: 'Close Agent Workspace?',
           detail:
-            'Die laufenden Terminalprozesse werden beendet. Dein Workspace-Layout bleibt gespeichert.',
-          buttons: ['Abbrechen', 'Beenden'],
+            'Running terminal processes will be stopped. Your workspace layout will be saved.',
+          buttons: ['Cancel', 'Quit'],
           defaultId: 0,
           cancelId: 0,
         })
@@ -314,7 +314,7 @@ function createWindow(): void {
       closing = true
       window?.close()
     })()
-      .catch((error) => dialog.showErrorBox('Schließen fehlgeschlagen', String(error)))
+      .catch((error) => dialog.showErrorBox('Could not close workspace', String(error)))
       .finally(() => {
         confirmingClose = false
       })
@@ -338,10 +338,10 @@ else {
     const template: Electron.MenuItemConstructorOptions[] = [
       ...(process.platform === 'darwin' ? [{ role: 'appMenu' as const }] : []),
       {
-        label: 'Datei',
+        label: 'File',
         submenu: [
           {
-            label: 'Workspace öffnen …',
+            label: 'Open workspace …',
             accelerator: 'CmdOrCtrl+O',
             click: () => window?.webContents.send('workspace:open-requested'),
           },

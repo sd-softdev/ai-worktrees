@@ -35,7 +35,7 @@ export class TerminalService {
     const existing = this.sessions.get(id)
     if (existing) {
       if (existing.worktree !== worktree)
-        throw new Error('Terminal gehört zu einem anderen Worktree.')
+        throw new Error('This terminal belongs to a different worktree.')
       this.flush(id, existing)
       return this.snapshot(existing)
     }
