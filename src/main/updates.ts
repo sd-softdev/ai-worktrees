@@ -13,7 +13,9 @@ interface Options {
   arch: string
   directory: string
   fetch: typeof fetch
-  openFile: (filename: string) => Promise<string>
+  installMac: (filename: string, version: string) => Promise<void>
+  installationPath?: string
+  initialError?: string
 }
 
 export class UpdateService {
@@ -31,9 +33,11 @@ export class UpdateService {
     private emit: (state: UpdateState) => void,
   ) {
     this.state = {
-      status: options.packaged ? 'idle' : 'unsupported',
+      status: options.packaged ? (options.initialError ? 'error' : 'idle') : 'unsupported',
       currentVersion: options.version,
-      installation: options.platform === 'darwin' ? 'dmg' : 'restart',
+      installation: options.platform === 'darwin' ? 'mac' : 'restart',
+      installationPath: options.installationPath,
+      error: options.initialError,
     }
     updater.autoDownload = false
     updater.autoInstallOnAppQuit = false
@@ -113,7 +117,7 @@ export class UpdateService {
       this.cancellation = new CancellationToken()
       this.controller = new AbortController()
       try {
-        if (this.state.installation === 'dmg') {
+        if (this.state.installation === 'mac') {
           const name = `agent-workspace-${this.info!.version}-mac-${this.options.arch}.dmg`
           const file = this.info!.files.find((file) => file.url === name)
           if (
@@ -169,11 +173,10 @@ export class UpdateService {
     if (this.state.status !== 'downloaded') return Promise.resolve(this.snapshot)
     return this.run(async () => {
       this.set({ status: 'installing', error: undefined })
-      if (this.state.installation === 'dmg') {
+      if (this.state.installation === 'mac') {
         if (!this.downloaded || !this.file) throw new Error('Please download the update again.')
         await verifyUpdateFile(this.downloaded, this.file)
-        const error = await this.options.openFile(this.downloaded)
-        if (error) throw new Error(error)
+        await this.options.installMac(this.downloaded, this.info!.version)
       } else {
         this.updater.quitAndInstall(false, true)
       }

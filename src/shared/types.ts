@@ -45,7 +45,8 @@ export interface UpdateState {
     | 'error'
     | 'unsupported'
   currentVersion: string
-  installation: 'restart' | 'dmg'
+  installation: 'restart' | 'mac'
+  installationPath?: string
   version?: string
   progress?: number
   transferred?: number

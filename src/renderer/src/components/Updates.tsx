@@ -62,8 +62,7 @@ export function Updates() {
     'up-to-date': 'You are using the latest version.',
     downloading: 'Downloading and verifying the update …',
     downloaded: 'The update is verified and ready to install.',
-    installing:
-      state?.installation === 'dmg' ? 'Opening the installer …' : 'Starting the update installer …',
+    installing: 'Preparing the update and restarting Agent Workspace …',
     error: 'The update could not be completed. You can try again.',
     unsupported:
       'Updates are available in installed release builds. On Linux, use the AppImage or DEB package.',
@@ -125,12 +124,16 @@ export function Updates() {
                 </span>
               </div>
             )}
-            {state?.installation === 'dmg' ? (
-              <p className="muted">
-                After downloading, open the DMG and replace Agent Workspace in its current
-                installation folder. The app will close first. These macOS builds use the DMG
-                installer because they are unsigned.
-              </p>
+            {state?.installation === 'mac' ? (
+              <>
+                <p className="muted">
+                  Restart &amp; install replaces this app in its current installation folder and
+                  launches the updated version. Your workspace data stays in place.
+                </p>
+                <p className="update-installation-path">
+                  Installation: <code>{state.installationPath}</code>
+                </p>
+              </>
             ) : (
               <p className="muted">
                 Updates are downloaded and installed only when you choose. Installation restarts the
@@ -183,7 +186,7 @@ export function Updates() {
                 onClick={() => void install()}
               >
                 <RefreshCw size={15} />
-                {state?.installation === 'dmg' ? 'Open installer & quit' : 'Restart & install'}
+                Restart &amp; install
               </button>
             ) : (
               <>

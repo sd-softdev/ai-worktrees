@@ -1569,6 +1569,12 @@ svg {
   color: #d6b9ff;
   background: #a475ff1a;
 }
+.update-installation-path {
+  font-size: 11px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
 .update-content {
   display: flex;
   flex-direction: column;

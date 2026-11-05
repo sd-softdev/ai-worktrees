@@ -20,6 +20,7 @@ import { SshAuthentication } from './ssh/auth'
 import { SshConnection } from './ssh/connection'
 import { SshBackend } from './ssh/backend'
 import { UpdateService } from './updates'
+import { consumeMacUpdateError, installMacUpdate, macBundlePath } from './mac-update'
 import type { SshConnectInput } from '../shared/types'
 import {
   createWorktreeSchema,
@@ -150,7 +151,7 @@ function registerIpc(): void {
         }
         await settings.flush()
         const state = await updates.install()
-        if (state.status === 'installing' && state.installation === 'dmg') {
+        if (state.status === 'installing' && state.installation === 'mac') {
           closing = true
           app.quit()
         }
@@ -396,7 +397,10 @@ else {
     if (window?.isMinimized()) window.restore()
     window?.focus()
   })
-  void app.whenReady().then(() => {
+  void app.whenReady().then(async () => {
+    const updateDirectory = path.join(app.getPath('userData'), 'updates')
+    const initialError =
+      process.platform === 'darwin' ? await consumeMacUpdateError(updateDirectory) : undefined
     updates = new UpdateService(
       autoUpdater,
       {
@@ -404,9 +408,22 @@ else {
         packaged: app.isPackaged,
         platform: process.platform,
         arch: process.arch,
-        directory: path.join(app.getPath('userData'), 'updates'),
+        directory: updateDirectory,
         fetch: (url, options) => net.fetch(url instanceof URL ? url.toString() : url, options),
-        openFile: (filename) => shell.openPath(filename),
+        installationPath:
+          process.platform === 'darwin' && app.isPackaged
+            ? macBundlePath(process.execPath)
+            : undefined,
+        initialError,
+        installMac: (filename, version) =>
+          installMacUpdate(filename, version, {
+            executable: process.execPath,
+            directory: updateDirectory,
+            pid: process.pid,
+            args: process.argv
+              .slice(1)
+              .filter((arg) => !/^--(inspect|remote-debugging-port)/.test(arg)),
+          }),
       },
       (state) => send('updates:state', state),
     )
@@ -439,7 +456,7 @@ else {
     Menu.setApplicationMenu(Menu.buildFromTemplate(template))
     createWindow()
     if (app.isPackaged && process.env.AGENT_WORKSPACE_DISABLE_UPDATE_CHECK !== '1') {
-      setTimeout(() => void updates.check(), 15_000).unref()
+      if (!initialError) setTimeout(() => void updates.check(), 15_000).unref()
       setInterval(() => void updates.check(), 6 * 60 * 60_000).unref()
     }
   })

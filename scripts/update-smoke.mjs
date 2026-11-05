@@ -1,20 +1,29 @@
 import assert from 'node:assert/strict'
 import { _electron as electron, expect as baseExpect } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
 import { createServer } from 'node:http'
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  writeFile,
+} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { writeUpdateMetadata } from './update-metadata.mjs'
+import { macUpdateFixture } from './fixtures/mac-update.mjs'
 
 const project = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const { version } = JSON.parse(await readFile(path.join(project, 'package.json'), 'utf8'))
 const expect = baseExpect.configure({ timeout: 30_000 })
 const base = path.join(os.tmpdir(), 'opencode')
 await mkdir(base, { recursive: true })
-const directory = await mkdtemp(path.join(base, 'update-smoke-'))
+const directory = await realpath(await mkdtemp(path.join(base, 'update-smoke-')))
 const profile = path.join(directory, 'profile')
 const repository = path.join(directory, 'repository')
 const packages = path.join(directory, 'packages')
@@ -35,6 +44,19 @@ execFileSync('git', [
   'Initial',
 ])
 const nextVersion = '99.0.0'
+const mac = process.platform === 'darwin'
+let executablePath =
+  process.env.AGENT_WORKSPACE_EXECUTABLE ||
+  path.join(
+    project,
+    mac
+      ? `dist/${process.arch === 'arm64' ? 'mac-arm64' : 'mac'}/Agent Workspace.app/Contents/MacOS/Agent Workspace`
+      : process.platform === 'win32'
+        ? 'dist/win-unpacked/Agent Workspace.exe'
+        : 'dist/linux-unpacked/agent-workspace',
+  )
+const fixture = mac ? await macUpdateFixture(directory, executablePath, nextVersion) : null
+if (fixture) executablePath = fixture.executable
 const data = Buffer.alloc(2 * 1024 ** 2, 'update-fixture')
 for (const suffix of [
   'win-x64.exe',
@@ -44,6 +66,7 @@ for (const suffix of [
   'linux-amd64.deb',
 ])
   await writeFile(path.join(packages, `agent-workspace-${nextVersion}-${suffix}`), data)
+if (fixture) await copyFile(fixture.dmg, path.join(packages, path.basename(fixture.dmg)))
 await writeUpdateMetadata(packages, nextVersion)
 let remoteVersion = version
 let offline = true
@@ -82,16 +105,6 @@ const server = createServer(async (request, response) => {
 })
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
 const endpoint = `http://127.0.0.1:${server.address().port}`
-const executablePath =
-  process.env.AGENT_WORKSPACE_EXECUTABLE ||
-  path.join(
-    project,
-    process.platform === 'darwin'
-      ? `dist/${process.arch === 'arm64' ? 'mac-arm64' : 'mac'}/Agent Workspace.app/Contents/MacOS/Agent Workspace`
-      : process.platform === 'win32'
-        ? 'dist/win-unpacked/Agent Workspace.exe'
-        : 'dist/linux-unpacked/agent-workspace',
-  )
 const env = {
   ...process.env,
   AGENT_WORKSPACE_USER_DATA: profile,
@@ -114,7 +127,7 @@ try {
   page = await app.firstWindow()
   await expect(page.locator('.terminal-process.running')).toHaveCount(1)
   // Exercise the real updater/provider and IPC against a local release server.
-  // Only OS installation/quit is intercepted to keep the test installation intact.
+  // macOS updates an isolated real app copy; other platforms intercept OS installation.
   await app.evaluate(
     ({ app, autoUpdater: native, dialog, net, shell }, { endpoint, directory }) => {
       const updater = process.mainModule.require('electron-updater').autoUpdater
@@ -146,6 +159,12 @@ try {
       }
       dialog.showMessageBox = async (_window, options) => {
         globalThis.updateProbe.prompts.push(options)
+        process.mainModule
+          .require('node:fs')
+          .writeFileSync(
+            `${directory}/prompts.json`,
+            JSON.stringify(globalThis.updateProbe.prompts),
+          )
         return { response: globalThis.updateProbe.confirmation, checkboxChecked: false }
       }
       globalThis.updateProbe.automatic = {
@@ -156,6 +175,7 @@ try {
     { endpoint, directory },
   )
   await page.getByRole('button', { name: 'Updates', exact: true }).click()
+  if (fixture) await expect(page.locator('.update-installation-path')).toContainText(fixture.bundle)
   await expect(page.locator('dialog [role="alert"]')).toBeVisible()
   await expect(page.locator('.terminal-process.running')).toHaveCount(1)
   offline = false
@@ -187,7 +207,7 @@ try {
   await expect(page.locator('.terminal-process.running')).toHaveCount(1)
   await page.getByRole('button', { name: 'Updates', exact: true }).click()
   const install = page.getByRole('button', {
-    name: process.platform === 'darwin' ? 'Open installer & quit' : 'Restart & install',
+    name: 'Restart & install',
     exact: true,
   })
   await install.click()
@@ -205,40 +225,63 @@ try {
     automatic: { download: false, install: false },
   })
   await expect(page.locator('.terminal-process.running')).toHaveCount(1)
-  await app.evaluate(() => {
+  await app.evaluate(({ app }) => {
     globalThis.updateProbe.confirmation = 1
+    if (process.platform === 'darwin') app.quit = globalThis.updateProbe.originalQuit
   })
+  const closed = fixture ? app.waitForEvent('close', { timeout: 180_000 }) : null
   await install.click()
-  await expect.poll(() => app.evaluate(() => globalThis.updateProbe.quits)).toBe(1)
-  const installed = await app.evaluate(() => ({
-    opened: globalThis.updateProbe.opened,
-    installs: globalThis.updateProbe.installs,
-    prompts: globalThis.updateProbe.prompts,
-  }))
-  assert.equal(installed.prompts.length, 2)
-  assert.match(installed.prompts[0].detail, /SSH terminals/)
-  if (process.platform === 'darwin') {
-    assert.match(installed.opened, new RegExp(`mac-${process.arch}\\.dmg$`))
+  if (fixture) {
+    await closed
+    app = null
+    await expect
+      .poll(() => readFile(fixture.receipt, 'utf8').catch(() => ''), { timeout: 60_000 })
+      .not.toBe('')
+    const launched = JSON.parse(await readFile(fixture.receipt, 'utf8'))
+    assert.equal(launched.version, nextVersion)
+    assert.equal(launched.update.currentVersion, nextVersion)
+    assert.equal(launched.executable, fixture.executable)
+    assert.equal(launched.userData, profile)
     assert.equal(
-      createHash('sha512')
-        .update(await readFile(installed.opened))
-        .digest('base64'),
-      createHash('sha512').update(data).digest('base64'),
+      await readFile(path.join(fixture.alternate, 'keep.txt'), 'utf8'),
+      'Other installation must remain untouched.',
     )
-  } else assert.equal(installed.installs, 1)
+    await expect
+      .poll(() => {
+        try {
+          process.kill(launched.pid, 0)
+          return true
+        } catch {
+          return false
+        }
+      })
+      .toBe(false)
+  } else {
+    await expect.poll(() => app.evaluate(() => globalThis.updateProbe.quits)).toBe(1)
+    assert.equal(await app.evaluate(() => globalThis.updateProbe.installs), 1)
+  }
+  const prompts = JSON.parse(await readFile(path.join(directory, 'prompts.json'), 'utf8'))
+  assert.equal(prompts.length, 2)
+  assert.match(prompts[0].detail, /SSH terminals/)
   assert.ok(
     (await readdir(path.join(profile, 'workspaces'))).some((name) => name.startsWith('workspace-')),
   )
   console.log(
-    'Update smoke test passed: current/older/new releases, no automatic install, checksum rejection, cancellation, retry, native download, terminal confirmation and installer handoff.',
+    `Update smoke test passed: current/older/new releases, checksum rejection, cancellation, retry, terminal confirmation and ${fixture ? 'in-place macOS replacement with verified relaunch/version' : 'native installer handoff'}.`,
   )
 } catch (error) {
   await mkdir(path.join(project, 'artifacts'), { recursive: true })
-  if (page)
+  if (page && !page.isClosed())
     await page
       .screenshot({ path: path.join(project, 'artifacts/update-failure.png') })
       .catch(() => {})
   await writeFile(path.join(project, 'artifacts/update-main.log'), logs.join(''))
+  if (fixture) {
+    const diagnostic = await readFile(path.join(profile, 'updates/mac-install.log'), 'utf8').catch(
+      () => '',
+    )
+    await writeFile(path.join(project, 'artifacts/mac-install.log'), diagnostic)
+  }
   throw error
 } finally {
   if (app) {

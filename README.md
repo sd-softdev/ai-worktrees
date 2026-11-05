@@ -56,11 +56,13 @@ Click the version button in the bottom-right status bar or choose **Help → Che
 
 1. Select **Download update**. Downloads show progress, can be cancelled, and are verified using SHA-512 before installation. Network failures or checksum errors can be retried.
 2. **Windows (NSIS) / Linux (AppImage or DEB):** choose **Restart & install**. The native updater installs the package; DEB installations may request administrator authentication through the desktop environment.
-3. **macOS:** choose **Open installer & quit**, then replace the app from the downloaded DMG in its current installation folder. Current macOS builds are unsigned, so installation uses the DMG instead of automatic replacement.
+3. **macOS:** choose **Restart & install**. The updater verifies and stages the app from the DMG, then replaces the running installation at its exact path and relaunches it. The update dialog displays this path. This works for `~/Applications`, `/Applications`, and custom writable installation folders. A failed replacement restores the previous app. An unwritable folder is reported before the app closes.
 
 Downloads and installation require an explicit action. Quitting normally does not install a downloaded update. If terminals are running, installation asks for confirmation before closing them. Workspace layouts are saved; shells start fresh after relaunch. Development builds and unpackaged Linux executables do not self-update.
 
 **Upgrading from v0.2.1 or earlier:** install the current release once using the installer or installation script above. Older versions do not contain the update interface.
+
+**macOS versions v0.3.0 and v0.4.0:** their update button opens a DMG for manual installation. To get the new in-place updater, quit the app and run the installation script once with `--install-dir` pointing to the existing app's folder (the script's default is `~/Applications`). Dragging into the DMG's `/Applications` shortcut can create a second copy when the original is in `~/Applications`.
 
 ## Development setup
 
@@ -179,7 +181,7 @@ npm run test:install
 - `test:ssh` starts an isolated local OpenSSH server and checks host trust, encrypted keys, remote Git/file/worktree operations, terminal continuity, and reconnect. It requires `sshd` and a previously packaged app. Linux CI runs it with `AGENT_WORKSPACE_TEST_SSHD_SUDO=1`.
 - `test:ssh-client` launches the real OpenSSH client through the app's terminal service using Electron's native PTY runtime. Windows CI also checks executable lookup in a final PATH entry containing spaces.
 - `test:install` requires a previously built installer for the current version. It checks rejection of invalid checksums, installs to a temporary destination (system-wide for DEB), and runs the installed app through the desktop test. Windows/Linux require an isolated CI runner for this test.
-- `test:updates` uses the real packaged app, updater, and a local release server to test version checks, corrupt-download rejection, cancellation, retry, terminal confirmation, and installer handoff. The OS installation and quit are intercepted in this test; native installers are exercised by `test:install`, which also runs update tests against the installed applications, including both Linux formats.
+- `test:updates` uses the real packaged app, updater, and a local release server to test version checks, corrupt-download rejection, cancellation, retry, and terminal confirmation. On macOS it replaces an isolated app in a custom folder, relaunches it, and verifies its new version, exact executable path, and unchanged profile; another installation stays untouched. Windows/Linux intercept the final OS installer handoff. `test:install` additionally exercises native installers and runs update tests against installed applications, including both Linux formats.
 - macOS and Windows builds are currently unsigned; macOS builds are not notarized.
 - `node-pty` is built for the Electron version during dependency installation. After upgrading Electron, run `npm run postinstall` if needed.
 
