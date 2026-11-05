@@ -7,6 +7,8 @@ import type { SshConnectInput } from '../../shared/types'
 import type { TerminalLaunch } from '../backend'
 import { SshAuthentication } from './auth'
 import { shellQuote, sshBaseArgs } from './config'
+import { sshExecutable } from './executable'
+import { remoteCommand, startupError } from './bootstrap'
 
 interface Pending {
   resolve: (value: unknown) => void
@@ -23,6 +25,7 @@ export class SshConnection {
   private diagnostic = ''
   private stopped = false
   private online = false
+  private executable = ''
   private readyResolve?: () => void
   private readyReject?: (error: Error) => void
 
@@ -41,26 +44,25 @@ export class SshConnection {
   }
 
   async start(): Promise<void> {
+    this.executable = await sshExecutable()
     this.env = await this.authentication.environment(this.id, this.target.host)
-    if (this.stopped) throw new Error('SSH-Verbindung abgebrochen.')
+    if (this.stopped) throw new Error('SSH connection cancelled.')
     if (process.platform !== 'win32')
       this.socketDirectory = await mkdtemp(path.join(os.tmpdir(), 'aw-ssh-'))
     const source = await readFile(this.agentFile, 'utf8')
     if (this.stopped) {
       this.cleanup()
-      throw new Error('SSH-Verbindung abgebrochen.')
+      throw new Error('SSH connection cancelled.')
     }
     // Send the agent via stdin rather than a long shell argument (Windows has a
     // 32K command-line limit). RPC starts only after the agent's ready message.
-    const loader =
-      'let b="";const f=c=>{b+=c;const n=b.indexOf("\\n");if(n<0)return;process.stdin.removeListener("data",f);new Function("require","module","exports",Buffer.from(b.slice(0,n),"base64").toString())(require,module,exports)};process.stdin.on("data",f)'
-    const command = `exec "\${SHELL:-/bin/sh}" -lc ${shellQuote(`exec ${shellQuote(this.target.nodePath)} -e ${shellQuote(loader)}`)}`
+    const command = remoteCommand(this.target.nodePath)
     const ready = new Promise<void>((resolve, reject) => {
       this.readyResolve = resolve
       this.readyReject = reject
     })
     this.child = spawn(
-      'ssh',
+      this.executable,
       [...sshBaseArgs(), ...this.controlArgs(true), '-T', '--', this.target.host, command],
       {
         env: { ...process.env, ...this.env },
@@ -73,15 +75,21 @@ export class SshConnection {
       this.diagnostic = (this.diagnostic + chunk.toString('utf8')).slice(-16_384)
     })
     this.child.on('error', (error) =>
-      this.fail(new Error(`SSH konnte nicht gestartet werden: ${error.message}`)),
+      this.fail(
+        new Error(
+          `Could not start SSH. Install the OpenSSH client and restart Agent Workspace. ${error.message}`,
+        ),
+      ),
     )
-    this.child.on('close', () =>
-      this.fail(new Error(this.diagnostic.trim() || 'SSH-Verbindung wurde getrennt.')),
-    )
-    this.child.stdin.on('error', (error) => this.fail(error))
+    this.child.on('close', () => this.fail(startupError(this.diagnostic, this.target)))
+    // A failed preflight may close stdin before stderr is drained. Preserve its
+    // diagnostic instead of replacing it with a generic EPIPE error.
+    this.child.stdin.on('error', (error: NodeJS.ErrnoException) => {
+      if (error.code !== 'EPIPE') this.fail(error)
+    })
     this.child.stdin.write(Buffer.from(source).toString('base64') + '\n')
     const timer = setTimeout(
-      () => this.fail(new Error('Zeitüberschreitung beim Aufbau der SSH-Verbindung.')),
+      () => this.fail(new Error('Timed out while connecting over SSH.')),
       120_000,
     )
     try {
@@ -107,7 +115,7 @@ export class SshConnection {
   private receive(chunk: string): void {
     this.buffer += chunk
     if (this.buffer.length > 40 * 1024 * 1024) {
-      this.fail(new Error('Remote-Antwort ist zu groß.'))
+      this.fail(new Error('Remote response is too large.'))
       return
     }
     let newline: number
@@ -144,13 +152,12 @@ export class SshConnection {
   }
 
   call<T>(method: string, ...args: unknown[]): Promise<T> {
-    if (!this.connected)
-      return Promise.reject(new Error('SSH-Verbindung unterbrochen. Bitte erneut verbinden.'))
+    if (!this.connected) return Promise.reject(new Error('SSH connection lost. Please reconnect.'))
     const id = randomUUID()
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id)
-        reject(new Error(`Zeitüberschreitung bei Remote-Operation: ${method}`))
+        reject(new Error(`Remote operation timed out: ${method}`))
       }, 60_000)
       this.pending.set(id, { resolve: (value) => resolve(value as T), reject, timer })
       this.child!.stdin.write(JSON.stringify({ id, method, args }) + '\n')
@@ -158,10 +165,10 @@ export class SshConnection {
   }
 
   terminal(directory: string): TerminalLaunch {
-    if (!this.connected) throw new Error('SSH-Verbindung unterbrochen. Bitte erneut verbinden.')
+    if (!this.connected) throw new Error('SSH connection lost. Please reconnect.')
     const script = `cd -- ${shellQuote(directory)} && export TERM=xterm-256color COLORTERM=truecolor && exec "\${SHELL:-/bin/sh}" -l`
     return {
-      file: 'ssh',
+      file: this.executable,
       args: [
         ...sshBaseArgs(),
         ...this.controlArgs(false),
@@ -187,10 +194,10 @@ export class SshConnection {
     if (this.stopped) return
     this.stopped = true
     this.online = false
-    this.readyReject?.(new Error('SSH-Verbindung abgebrochen.'))
+    this.readyReject?.(new Error('SSH connection cancelled.'))
     for (const request of this.pending.values()) {
       clearTimeout(request.timer)
-      request.reject(new Error('SSH-Verbindung beendet.'))
+      request.reject(new Error('SSH connection closed.'))
     }
     this.pending.clear()
     this.authentication.cancel(this.id)

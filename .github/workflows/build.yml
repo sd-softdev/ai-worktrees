@@ -88,6 +88,10 @@ jobs:
           AGENT_WORKSPACE_TEST_SSHD_SUDO: '1'
         run: xvfb-run --auto-servernum --server-args="-screen 0 1600x1000x24" npm run test:ssh
 
+      - name: Test Windows OpenSSH client in a real PTY
+        if: runner.os == 'Windows'
+        run: npm run test:ssh-client
+
       - name: Test turnkey installer and installed application
         if: runner.os != 'Linux'
         run: npm run test:install
