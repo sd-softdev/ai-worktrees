@@ -426,8 +426,11 @@ try {
   // scroll the source away before its first mousemove on a small desktop.
   await page.mouse.move(grip.x + grip.width + 8, grip.y + grip.height / 2, { steps: 5 })
   await expect(page.locator('.worktree-drop-target.dragging')).toHaveCount(1)
-  await firstCard.locator('.worktree-name').hover()
-  await firstCard.locator('.worktree-name').hover()
+  // Target the upper half explicitly and wait until the UI accepts the drop.
+  // Two moves let Chromium dispatch dragover after entering the target.
+  await firstCard.hover({ position: { x: 20, y: 12 } })
+  await firstCard.hover({ position: { x: 20, y: 12 } })
+  await expect(firstCard).toHaveClass(/\bdrop-before\b/)
   await page.mouse.up()
   await expect(page.locator('.worktree-list .worktree-name strong')).toHaveText([
     'feat/second',
