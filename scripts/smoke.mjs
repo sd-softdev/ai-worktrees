@@ -583,7 +583,7 @@ try {
   expect(
     await readFile(path.join(tracked.slice('worktree '.length), 'src/auth.ts'), 'utf8'),
   ).toContain('login = true')
-  expect(tracked.slice('worktree '.length)).toBe(featurePath)
+  expect(path.normalize(tracked.slice('worktree '.length))).toBe(path.normalize(featurePath))
   execFileSync('git', ['-C', featurePath, 'add', '--all'])
   execFileSync('git', [
     '-C',
