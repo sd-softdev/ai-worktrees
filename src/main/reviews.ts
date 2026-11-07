@@ -8,6 +8,7 @@ import type {
   ReviewResult,
 } from '../shared/types'
 import { git } from './git'
+import { loginShellPath } from './shell-path'
 
 const execFileAsync = promisify(execFile)
 const cacheDuration = 60_000
@@ -27,7 +28,12 @@ interface ReviewContext {
 
 // Execute directly, with closed stdin and a deadline: optional integrations must
 // never wait for an interactive login or block Git/terminal operations.
-export const runReviewCli: CliRunner = async (cwd, cli, args) => {
+async function executeCli(
+  cwd: string,
+  cli: 'gh' | 'glab',
+  args: string[],
+  env: NodeJS.ProcessEnv,
+): Promise<string> {
   const child = execFileAsync(cli, args, {
     cwd,
     encoding: 'utf8',
@@ -35,7 +41,7 @@ export const runReviewCli: CliRunner = async (cwd, cli, args) => {
     maxBuffer: 4 * 1024 * 1024,
     windowsHide: true,
     env: {
-      ...process.env,
+      ...env,
       GH_PROMPT_DISABLED: '1',
       GH_NO_UPDATE_NOTIFIER: '1',
       GLAB_CHECK_UPDATE: 'false',
@@ -46,6 +52,20 @@ export const runReviewCli: CliRunner = async (cwd, cli, args) => {
   })
   child.child.stdin?.end()
   return (await child).stdout
+}
+
+export const runReviewCli: CliRunner = async (cwd, cli, args) => {
+  try {
+    return await executeCli(cwd, cli, args, process.env)
+  } catch (error) {
+    if (process.platform !== 'darwin' || (error as NodeJS.ErrnoException).code !== 'ENOENT')
+      throw error
+    // Finder launches omit paths configured in .zprofile/.zshrc. Recover only
+    // the shell's PATH; the CLI still receives literal argv and closed stdin.
+    const searchPath = await loginShellPath()
+    if (!searchPath || searchPath === process.env.PATH) throw error
+    return executeCli(cwd, cli, args, { ...process.env, PATH: searchPath })
+  }
 }
 
 export function parseReviewRemote(value: string): Repository | null {

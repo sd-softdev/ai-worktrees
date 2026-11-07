@@ -1,11 +1,12 @@
 import { execFile } from 'node:child_process'
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { git } from '../src/main/git'
 import { parseReviewRemote, ReviewService, runReviewCli } from '../src/main/reviews'
+import { shellQuote } from '../src/main/ssh/config'
 import type { ReviewPreferences } from '../src/shared/types'
 
 const execFileAsync = promisify(execFile)
@@ -50,7 +51,7 @@ function mergeRequest(extra = {}) {
 beforeEach(async () => {
   const base = path.join(os.tmpdir(), 'opencode')
   await mkdir(base, { recursive: true })
-  directory = await mkdtemp(path.join(base, 'agent-workspace-reviews-'))
+  directory = await realpath(await mkdtemp(path.join(base, 'agent-workspace-reviews-')))
   await git(directory, ['init', '-b', 'main'])
   run.mockReset()
 })
@@ -132,6 +133,7 @@ describe('optional CLI integration', () => {
     'preserves missing-executable errors from the real %s runner',
     async (cli) => {
       vi.stubEnv('PATH', path.join(directory, 'empty-path'))
+      vi.stubEnv('SHELL', path.join(directory, 'missing-shell'))
       await expect(runReviewCli(directory, cli, ['--version'])).rejects.toMatchObject({
         code: 'ENOENT',
       })
@@ -243,6 +245,85 @@ describe('optional CLI integration', () => {
     await service.get(directory, automatic)
     expect(run.mock.calls[2][2]).toContain('github.com/other/project')
     expect(run).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe.runIf(process.platform === 'darwin')('macOS GUI CLI lookup', () => {
+  const finderPath = '/usr/bin:/bin:/usr/sbin:/sbin'
+  let home: string
+  let bin: string
+
+  beforeEach(async () => {
+    home = path.join(directory, 'home')
+    bin = path.join(home, "User's CLI tools")
+    await mkdir(bin, { recursive: true })
+    vi.stubEnv('HOME', home)
+    vi.stubEnv('ZDOTDIR', home)
+    vi.stubEnv('SHELL', '/bin/zsh')
+    vi.stubEnv('PATH', finderPath)
+    await writeFile(path.join(home, '.zshrc'), `export PATH=${shellQuote(finderPath)}\n`)
+  })
+
+  it.each(['gh', 'glab'] as const)(
+    'finds %s through login and interactive config without shell-expanding CLI arguments',
+    async (cli) => {
+      const loginBin = path.join(home, 'login-bin')
+      await mkdir(loginBin)
+      await writeFile(
+        path.join(home, '.zprofile'),
+        `export PATH=${shellQuote(loginBin)}:${finderPath}\nprintf 'Login banner\\n'\n`,
+      )
+      await writeFile(
+        path.join(home, '.zshrc'),
+        `export PATH=${shellQuote(bin)}:"$PATH"\nprintf 'Interactive banner\\n'\n`,
+      )
+      await writeFile(path.join(home, '.zlogout'), "printf 'Logout banner\\n'\n")
+      await writeFile(
+        path.join(loginBin, 'profile-helper'),
+        "#!/bin/sh\nprintf 'login PATH inherited\\n'\n",
+        { mode: 0o755 },
+      )
+      await writeFile(
+        path.join(bin, cli),
+        '#!/bin/sh\nread -r unexpected && exit 1\nprintf \'%s\\n\' "$PWD" "$@" "$GH_PROMPT_DISABLED" "$GLAB_CHECK_UPDATE"\nprofile-helper\n',
+        { mode: 0o755 },
+      )
+      const args = [
+        'api',
+        'projects/team%2Fproject/merge_requests?state=all&scope=all',
+        "literal spaces 'quotes' $HOME $(exit 1)",
+      ]
+      expect(await runReviewCli(directory, cli, args)).toBe(
+        [directory, ...args, '1', 'false', 'login PATH inherited', ''].join('\n'),
+      )
+      expect(process.env.PATH).toBe(finderPath)
+    },
+  )
+
+  it('recovers after the shell PATH changes following a missing CLI result', async () => {
+    await expect(runReviewCli(directory, 'glab', ['--version'])).rejects.toMatchObject({
+      code: 'ENOENT',
+    })
+    await writeFile(path.join(bin, 'glab'), "#!/bin/sh\nprintf 'glab fixture\\n'\n", {
+      mode: 0o755,
+    })
+    await writeFile(path.join(home, '.zshrc'), `export PATH=${shellQuote(bin)}:${finderPath}\n`)
+    expect(await runReviewCli(directory, 'glab', ['--version'])).toBe('glab fixture\n')
+    expect((await git(directory, ['status', '--porcelain'])).trim()).toBe('?? home/')
+  })
+
+  it('keeps missing CLI failures nonfatal when shell startup hangs', async () => {
+    const shell = path.join(home, 'slow-shell')
+    await writeFile(shell, '#!/bin/sh\nexec /bin/sleep 30\n', { mode: 0o755 })
+    vi.stubEnv('SHELL', shell)
+    await git(directory, ['remote', 'add', 'origin', 'https://gitlab.com/team/project'])
+    const start = Date.now()
+    expect(await new ReviewService().get(directory, automatic)).toMatchObject({
+      status: 'unavailable',
+      reason: 'missing-cli',
+    })
+    expect(Date.now() - start).toBeLessThan(8_000)
+    expect((await git(directory, ['branch', '--show-current'])).trim()).toBe('main')
   })
 })
 
