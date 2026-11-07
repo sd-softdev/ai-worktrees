@@ -37,8 +37,11 @@ export class SshBackend implements WorkspaceBackend {
   remove(_workspace: Workspace, worktree: Worktree): Promise<void> {
     return this.connection.call('remove', worktree.path)
   }
-  fetch(directory: string): Promise<string> {
-    return this.connection.call('fetch', directory)
+  fetch(directory: string, prune = false): Promise<string> {
+    return this.connection.call('fetch', directory, prune)
+  }
+  merge(directory: string): Promise<string> {
+    return this.connection.call('merge', directory)
   }
   push(directory: string): Promise<string> {
     return this.connection.call('push', directory)

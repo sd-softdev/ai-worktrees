@@ -10,6 +10,7 @@ import {
   fetchRepository,
   history,
   inspectWorkspace,
+  mergeOriginMain,
   pushWorktree,
   removeWorktree,
 } from '../main/git'
@@ -73,11 +74,10 @@ async function dispatch(method: string, args: unknown[]): Promise<unknown> {
       return hooks.snapshots()
     case 'hooks:cancel':
       return hooks.cancel(requireWorktree(directory).path)
-    case 'fetch': {
-      const worktree = requireWorktree(directory)
-      if (!worktree.isMain) throw new Error('Fetch must run in the base repository.')
-      return fetchRepository(worktree.path)
-    }
+    case 'fetch':
+      return fetchRepository(requireWorktree(directory).path, args[1] === true)
+    case 'merge':
+      return mergeOriginMain(requireWorktree(directory).path)
     case 'push':
       return pushWorktree(requireWorktree(directory).path)
     case 'history':

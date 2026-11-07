@@ -51,7 +51,8 @@ const api: DesktopAPI = {
   retryHooks: (id, directory) => ipcRenderer.invoke('hooks:retry', id, directory),
   cancelHooks: (id, directory) => ipcRenderer.invoke('hooks:cancel', id, directory),
   removeWorktree: (path) => ipcRenderer.invoke('worktree:remove', path),
-  fetchRepository: (workspaceId) => ipcRenderer.invoke('git:fetch', workspaceId),
+  fetchRepository: (workspaceId, prune) => ipcRenderer.invoke('git:fetch', workspaceId, prune),
+  mergeOriginMain: (workspaceId, path) => ipcRenderer.invoke('git:merge', workspaceId, path),
   pushWorktree: (workspaceId, path) => ipcRenderer.invoke('git:push', workspaceId, path),
   savePreferences: (commonDir, preferences) =>
     ipcRenderer.invoke('preferences:save', commonDir, preferences),

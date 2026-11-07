@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { appendFile, mkdir, readFile, realpath } from 'node:fs/promises'
+import { access, appendFile, mkdir, readFile, realpath } from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import type { ChangedFile, Commit, DiffRequest, Workspace, Worktree } from '../shared/types'
@@ -22,9 +22,9 @@ export async function git(cwd: string, args: string[], timeout = 30_000): Promis
     )
     return stdout
   } catch (error) {
-    const failure = error as NodeJS.ErrnoException & { stderr?: string }
+    const failure = error as NodeJS.ErrnoException & { stderr?: string; stdout?: string }
     if (failure.code === 'ENOENT') throw new Error('Git was not found. Please install Git.')
-    throw new Error(failure.stderr?.trim() || failure.message)
+    throw new Error(failure.stderr?.trim() || failure.stdout?.trim() || failure.message)
   }
 }
 
@@ -35,10 +35,69 @@ async function remotes(cwd: string): Promise<string[]> {
   return names
 }
 
-export async function fetchRepository(cwd: string): Promise<string> {
+export async function fetchRepository(cwd: string, prune = false): Promise<string> {
   const names = await remotes(cwd)
-  await git(cwd, ['fetch', '--all', '--no-recurse-submodules'], 120_000)
-  return `Fetched ${names.join(', ')}.`
+  await git(
+    cwd,
+    ['fetch', '--all', '--no-recurse-submodules', ...(prune ? ['--prune'] : [])],
+    120_000,
+  )
+  return `Fetched ${names.join(', ')}${prune ? ' and pruned stale remote-tracking branches' : ''}.`
+}
+
+export async function mergeOriginMain(cwd: string): Promise<string> {
+  const branch = (
+    await git(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD']).catch(() => '')
+  ).trim()
+  if (!branch) throw new Error('Cannot merge into a detached HEAD. Check out a branch first.')
+  for (const operation of [
+    'MERGE_HEAD',
+    'rebase-merge',
+    'rebase-apply',
+    'CHERRY_PICK_HEAD',
+    'REVERT_HEAD',
+  ]) {
+    const filename = (
+      await git(cwd, ['rev-parse', '--path-format=absolute', '--git-path', operation])
+    ).trim()
+    if (
+      await access(filename).then(
+        () => true,
+        () => false,
+      )
+    )
+      throw new Error('Finish or abort the current Git operation before merging origin/main.')
+  }
+  if ((await changes(cwd)).length)
+    throw new Error('Commit or stash local changes before merging origin/main.')
+  if (!(await remotes(cwd)).includes('origin')) throw new Error('No origin remote configured.')
+  // Fetch this exact branch before merging; never fall back to a stale tracking ref.
+  await git(
+    cwd,
+    [
+      'fetch',
+      '--no-tags',
+      '--no-recurse-submodules',
+      '--',
+      'origin',
+      'refs/heads/main:refs/remotes/origin/main',
+    ],
+    120_000,
+  )
+  try {
+    await git(
+      cwd,
+      ['merge', '--no-edit', '--no-autostash', '--ff', 'refs/remotes/origin/main'],
+      120_000,
+    )
+  } catch (error) {
+    if ((await git(cwd, ['ls-files', '--unmerged'])).trim())
+      throw new Error(
+        'Merge conflicts from origin/main. Resolve them in this worktree and commit, or run git merge --abort in its terminal.',
+      )
+    throw error
+  }
+  return `Merged origin/main into ${branch}.`
 }
 
 export async function pushWorktree(cwd: string): Promise<string> {

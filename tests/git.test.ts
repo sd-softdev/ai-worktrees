@@ -10,6 +10,7 @@ import {
   git,
   history,
   inspectWorkspace,
+  mergeOriginMain,
   parseStatus,
   pushWorktree,
   removeWorktree,
@@ -56,6 +57,77 @@ afterEach(async () => {
 })
 
 describe('Git worktree integration', () => {
+  it('prunes deleted remote-tracking branches only when requested and preserves local branches', async () => {
+    const origin = await addRemote('origin')
+    await git(repo, ['push', 'origin', 'HEAD:refs/heads/obsolete'])
+    await git(repo, ['branch', 'obsolete'])
+    await git(origin, ['update-ref', '-d', 'refs/heads/obsolete'])
+    await fetchRepository(repo)
+    expect((await git(repo, ['branch', '-r'])).trim()).toBe('origin/obsolete')
+    expect(await fetchRepository(repo, true)).toContain('pruned stale remote-tracking branches')
+    expect(await git(repo, ['branch', '-r'])).toBe('')
+    expect(await git(repo, ['rev-parse', 'obsolete'])).toBe(await git(repo, ['rev-parse', 'HEAD']))
+  })
+
+  it('fetches fresh origin/main and merges divergent histories only into the selected worktree', async () => {
+    await addRemote('origin')
+    await git(repo, ['config', 'user.name', 'Workspace Test'])
+    await git(repo, ['config', 'user.email', 'test@example.invalid'])
+    const original = await git(repo, ['rev-parse', 'HEAD'])
+    const feature = await addWorktree(await inspectWorkspace(repo), 'feat/merge', 'main')
+    const upstream = await addWorktree(await inspectWorkspace(repo), 'incoming', 'main')
+    await writeFile(path.join(feature, 'feature.txt'), 'feature\n')
+    await commit(feature, 'Feature change')
+    const featureHead = (await git(feature, ['rev-parse', 'HEAD'])).trim()
+    await writeFile(path.join(upstream, 'incoming.txt'), 'incoming\n')
+    await commit(upstream, 'Incoming change')
+    const upstreamHead = (await git(upstream, ['rev-parse', 'HEAD'])).trim()
+    await git(upstream, ['push', 'origin', 'HEAD:refs/heads/main'])
+    await git(repo, ['update-ref', 'refs/remotes/origin/main', original.trim()])
+    expect(await mergeOriginMain(feature)).toBe('Merged origin/main into feat/merge.')
+    expect((await git(feature, ['show', '-s', '--format=%P', 'HEAD'])).trim()).toBe(
+      `${featureHead} ${upstreamHead}`,
+    )
+    expect(await readFile(path.join(feature, 'incoming.txt'), 'utf8')).toBe('incoming\n')
+    expect(await git(repo, ['rev-parse', 'HEAD'])).toBe(original)
+    expect(await changes(feature)).toEqual([])
+  })
+
+  it('preserves merge conflicts for resolution and rejects a second merge until they are resolved', async () => {
+    await addRemote('origin')
+    await git(repo, ['config', 'user.name', 'Workspace Test'])
+    await git(repo, ['config', 'user.email', 'test@example.invalid'])
+    const feature = await addWorktree(await inspectWorkspace(repo), 'feat/conflict', 'main')
+    await writeFile(path.join(feature, 'README.md'), 'feature\n')
+    await commit(feature, 'Feature conflict')
+    await writeFile(path.join(repo, 'README.md'), 'upstream\n')
+    await commit(repo, 'Main conflict')
+    await git(repo, ['push', 'origin', 'HEAD:refs/heads/main'])
+    await expect(mergeOriginMain(feature)).rejects.toThrow('Merge conflicts from origin/main')
+    expect(await readFile(path.join(feature, 'README.md'), 'utf8')).toContain('<<<<<<< HEAD')
+    expect((await changes(feature))[0]).toMatchObject({ index: 'U', working: 'U' })
+    await expect(mergeOriginMain(feature)).rejects.toThrow('Finish or abort')
+    await git(feature, ['merge', '--abort'])
+    expect(await readFile(path.join(feature, 'README.md'), 'utf8')).toBe('feature\n')
+  })
+
+  it('rejects dirty, detached and missing-origin merges without changing the checkout', async () => {
+    const head = await git(repo, ['rev-parse', 'HEAD'])
+    await expect(mergeOriginMain(repo)).rejects.toThrow('No Git remote')
+    const origin = await addRemote('origin')
+    await git(repo, ['push', 'origin', 'HEAD:refs/heads/main'])
+    await writeFile(path.join(repo, 'README.md'), 'keep local work\n')
+    await git(repo, ['add', 'README.md'])
+    await expect(mergeOriginMain(repo)).rejects.toThrow('Commit or stash')
+    expect(await readFile(path.join(repo, 'README.md'), 'utf8')).toBe('keep local work\n')
+    await git(repo, ['restore', '--staged', '--worktree', 'README.md'])
+    await git(origin, ['update-ref', '-d', 'refs/heads/main'])
+    await expect(mergeOriginMain(repo)).rejects.toThrow(/remote ref/)
+    expect(await git(repo, ['rev-parse', 'HEAD'])).toBe(head)
+    await git(repo, ['checkout', '--detach'])
+    await expect(mergeOriginMain(repo)).rejects.toThrow('detached HEAD')
+  })
+
   it('fetches every remote without changing local branches or uncommitted files', async () => {
     const origin = await addRemote('origin')
     const upstream = await addRemote('upstream')

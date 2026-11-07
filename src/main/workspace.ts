@@ -121,10 +121,21 @@ export class WorkspaceService {
     await this.settings.save(workspaceId, preferences)
   }
 
-  async fetch(workspaceId: string): Promise<string> {
+  async fetch(workspaceId: string, prune = false): Promise<string> {
     const workspace = this.requireWorkspace()
     if (workspace.id !== workspaceId) throw new Error('Workspace has changed. Please retry.')
-    return this.backend.fetch(this.requireWorktree(workspace.rootPath).path)
+    const tree = workspace.worktrees.find((item) => !item.missing)
+    if (!tree) throw new Error('No available worktree to fetch from.')
+    return this.backend.fetch(tree.path, prune)
+  }
+
+  async merge(workspaceId: string, worktreePath: string): Promise<string> {
+    if (this.requireWorkspace().id !== workspaceId)
+      throw new Error('Workspace has changed. Please retry.')
+    const tree = this.requireWorktree(worktreePath)
+    if (this.current?.hookRuns?.[worktreePath]?.status === 'running')
+      throw new Error('Wait for worktree setup to finish before merging.')
+    return this.backend.merge(tree.path)
   }
 
   async push(workspaceId: string, worktreePath: string): Promise<string> {

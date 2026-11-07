@@ -258,9 +258,15 @@ function registerIpc(): void {
   handle('hooks:cancel', (id, directory) =>
     workspace.cancelHooks(pathSchema.parse(id), pathSchema.parse(directory)),
   )
-  handle('git:fetch', (id) => {
+  handle('git:fetch', (id, prune) => {
     const workspaceId = pathSchema.parse(id)
-    return workspace.serialize(() => workspace.fetch(workspaceId))
+    const shouldPrune = z.boolean().default(false).parse(prune)
+    return workspace.serialize(() => workspace.fetch(workspaceId, shouldPrune))
+  })
+  handle('git:merge', (id, value) => {
+    const workspaceId = pathSchema.parse(id)
+    const worktreePath = pathSchema.parse(value)
+    return workspace.serialize(() => workspace.merge(workspaceId, worktreePath))
   })
   handle('git:push', (id, value) => {
     const workspaceId = pathSchema.parse(id)

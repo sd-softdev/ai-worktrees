@@ -610,6 +610,53 @@ svg {
   color: var(--muted);
   font-size: 11px;
 }
+.repository-actions {
+  position: relative;
+  margin-top: 12px;
+}
+.fetch-buttons {
+  display: flex;
+}
+.fetch-buttons .secondary-button {
+  padding: 6px 9px;
+  font-size: 11px;
+  border-radius: 5px 0 0 5px;
+}
+.fetch-buttons .fetch-options-toggle {
+  border-radius: 0 5px 5px 0;
+  border-left: 0;
+}
+.fetch-options {
+  position: absolute;
+  z-index: 10;
+  top: 32px;
+  left: 0;
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--background);
+  box-shadow: 0 6px 18px #0006;
+  padding: 4px;
+}
+.fetch-options button {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  text-align: left;
+  padding: 8px;
+  width: 100%;
+  border-radius: 4px;
+}
+.fetch-options button:hover {
+  background: #ffffff0b;
+}
+.fetch-options span {
+  color: var(--muted);
+  font-size: 10px;
+}
+.repository-actions .git-operation-result {
+  margin: 8px 0 0;
+}
 .hook-settings {
   display: flex;
   flex-direction: column;

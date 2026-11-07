@@ -142,8 +142,18 @@ try {
   git('remote', 'add', 'origin', gitRemote)
   git('push', 'origin', 'HEAD:refs/heads/fetched')
   git('update-ref', '-d', 'refs/remotes/origin/fetched')
-  await page.getByRole('button', { name: 'Fetch base repository' }).click()
-  await expect(page.locator('.base-repository .git-operation-result')).toHaveText('Fetched origin.')
+  await page.getByRole('button', { name: 'Fetch', exact: true }).click()
+  await expect(page.locator('.repository-actions .git-operation-result')).toHaveText(
+    'Fetched origin.',
+  )
+  git('push', 'origin', 'HEAD:refs/heads/main')
+  git('update-ref', 'refs/remotes/origin/obsolete', git('rev-parse', 'HEAD').trim())
+  await page.getByRole('button', { name: 'Fetch options' }).click()
+  await page.getByRole('button', { name: /Fetch --prune/ }).click()
+  await expect(page.locator('.repository-actions .git-operation-result')).toContainText(
+    'pruned stale remote-tracking branches',
+  )
+  expect(git('branch', '-r')).not.toContain('origin/obsolete')
   expect(git('rev-parse', 'origin/fetched')).toBe(git('rev-parse', 'HEAD'))
   await command('export SSH_SESSION=remote-alive')
   await command('printf "SSH_%s\\n" READY')
@@ -171,6 +181,16 @@ try {
     'Setup complete',
   )
   await expect(page.locator('.terminal-workspace:visible .terminal-process.running')).toHaveCount(1)
+  await page.getByRole('button', { name: 'Push worktree feat/remote' }).click()
+  await expect(page.locator('.worktree-list .git-operation-result')).toHaveText(
+    'Pushed feat/remote to origin/feat/remote.',
+  )
+  await page
+    .getByRole('button', { name: 'Merge origin/main into feat/remote', exact: true })
+    .click()
+  await expect(page.locator('.worktree-card.active .git-operation-result')).toHaveText(
+    'Merged origin/main into feat/remote.',
+  )
   await page.getByRole('button', { name: 'Push worktree feat/remote' }).click()
   await expect(page.locator('.worktree-list .git-operation-result')).toHaveText(
     'Pushed feat/remote to origin/feat/remote.',

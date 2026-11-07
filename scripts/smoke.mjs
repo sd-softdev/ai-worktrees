@@ -282,8 +282,8 @@ try {
     ipcMain.handle('git:changes', globalThis.inspectorProbe.original)
     delete globalThis.inspectorProbe
   })
-  await page.getByRole('button', { name: 'Fetch base repository' }).click()
-  await expect(page.locator('.base-repository .git-operation-result.error')).toContainText(
+  await page.getByRole('button', { name: 'Fetch', exact: true }).click()
+  await expect(page.locator('.repository-actions .git-operation-result.error')).toContainText(
     'No Git remote',
   )
   await expect(page.locator('.terminal-process.running')).toHaveCount(1)
@@ -293,10 +293,20 @@ try {
   git('push', 'origin', 'HEAD:refs/heads/fetched')
   git('update-ref', '-d', 'refs/remotes/origin/fetched')
   const originalHead = git('rev-parse', 'HEAD')
-  await page.getByRole('button', { name: 'Fetch base repository' }).click()
-  await expect(page.locator('.base-repository .git-operation-result')).toHaveText('Fetched origin.')
+  await page.getByRole('button', { name: 'Fetch', exact: true }).click()
+  await expect(page.locator('.repository-actions .git-operation-result')).toHaveText(
+    'Fetched origin.',
+  )
   expect(git('rev-parse', 'origin/fetched')).toBe(originalHead)
   expect(git('rev-parse', 'HEAD')).toBe(originalHead)
+  git('push', 'origin', 'HEAD:refs/heads/main')
+  git('update-ref', 'refs/remotes/origin/obsolete', originalHead.trim())
+  await page.getByRole('button', { name: 'Fetch options' }).click()
+  await page.getByRole('button', { name: /Fetch --prune/ }).click()
+  await expect(page.locator('.repository-actions .git-operation-result')).toContainText(
+    'pruned stale remote-tracking branches',
+  )
+  expect(git('branch', '-r')).not.toContain('origin/obsolete')
   await terminalCommand(probe('ready', 'MAIN'))
   await expect(page.locator('.terminal-workspace:visible .xterm-rows')).toContainText('MAIN_READY')
   await terminalCommand(setVariable('WORKTREE_SESSION', 'main-alive'))
@@ -364,6 +374,12 @@ try {
   await expect.poll(async () => (await hookReceipts()).length).toBe(3)
   await writeFile(hookControl, 'success')
   await expect(setup.getByRole('status')).toHaveText('Setup complete')
+  await page
+    .getByRole('button', { name: 'Merge origin/main into feat/auth-ui', exact: true })
+    .click()
+  await expect(page.locator('.worktree-card.active .git-operation-result')).toHaveText(
+    'Merged origin/main into feat/auth-ui.',
+  )
   expect((await hookReceipts())[0]).toMatchObject({
     branch: 'feat/auth-ui',
     event: 'worktree.created',

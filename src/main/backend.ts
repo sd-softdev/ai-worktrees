@@ -18,6 +18,7 @@ import {
   fetchRepository,
   history,
   inspectWorkspace,
+  mergeOriginMain,
   pushWorktree,
   removeWorktree,
 } from './git'
@@ -39,7 +40,8 @@ export interface WorkspaceBackend {
   inspect(directory: string): Promise<Workspace>
   create(workspace: Workspace, branch: string, base: string): Promise<string>
   remove(workspace: Workspace, worktree: Worktree): Promise<void>
-  fetch(directory: string): Promise<string>
+  fetch(directory: string, prune?: boolean): Promise<string>
+  merge(directory: string): Promise<string>
   push(directory: string): Promise<string>
   changes(directory: string): Promise<ChangedFile[]>
   history(directory: string): Promise<Commit[]>
@@ -63,6 +65,7 @@ export const localBackend: WorkspaceBackend = {
   create: addWorktree,
   remove: removeWorktree,
   fetch: fetchRepository,
+  merge: mergeOriginMain,
   push: pushWorktree,
   changes,
   history,

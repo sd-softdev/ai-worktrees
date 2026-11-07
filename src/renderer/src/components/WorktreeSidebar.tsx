@@ -9,7 +9,7 @@ import {
   Pencil,
   LockKeyhole,
   CircleAlert,
-  Download,
+  GitMerge,
   Upload,
   GripVertical,
   LoaderCircle,
@@ -27,6 +27,7 @@ import { errorMessage, refreshWorkspace, useApp } from '../store'
 import { Modal } from './Modal'
 import { APP_VERSION } from '../../../shared/version'
 import { HookSettings } from './Hooks'
+import { RepositoryActions } from './RepositoryActions'
 
 export const taskLabels: Record<TaskStatus, string> = {
   todo: 'To do',
@@ -177,6 +178,7 @@ export function WorktreeSidebar() {
             New worktrees in <code>.worktrees/</code>
           </span>
         </div>
+        <RepositoryActions key={workspace.id} />
         <button className="workspace-hooks-button" onClick={() => setConfiguringHooks(true)}>
           <Zap size={13} />
           Hooks
@@ -328,25 +330,26 @@ function WorktreeCard({
   const terminals = useApp((state) => state.terminals)
   const setup = useApp((state) => state.workspace?.hookRuns?.[worktree.path])
   const disconnected = useApp((state) => state.remoteStatus?.state === 'disconnected')
-  const [pending, setPending] = useState(false)
+  const [pending, setPending] = useState<'push' | 'merge' | null>(null)
   const [result, setResult] = useState<{ error: boolean; message: string } | null>(null)
   const running = settings.tabs
     .flatMap((tab) => leaves(tab.layout))
     .filter((leaf) => terminals[leaf.id]?.state === 'running').length
-  const sync = async () => {
+  const sync = async (operation: 'push' | 'merge') => {
     if (pending) return
-    setPending(true)
+    setPending(operation)
     setResult(null)
     try {
-      const message = worktree.isMain
-        ? await window.desktop.fetchRepository(workspaceId)
-        : await window.desktop.pushWorktree(workspaceId, worktree.path)
+      const message =
+        operation === 'merge'
+          ? await window.desktop.mergeOriginMain(workspaceId, worktree.path)
+          : await window.desktop.pushWorktree(workspaceId, worktree.path)
       setResult({ error: false, message })
-      await refreshWorkspace()
     } catch (error) {
       setResult({ error: true, message: errorMessage(error) })
     } finally {
-      setPending(false)
+      await refreshWorkspace()
+      setPending(null)
     }
   }
   return (
@@ -427,39 +430,47 @@ function WorktreeCard({
             {settings.onHold ? <Play size={13} /> : <Pause size={13} />}
           </button>
         )}
+        {!worktree.isMain && (
+          <button
+            className="worktree-sync"
+            disabled={
+              !!pending ||
+              worktree.missing ||
+              disconnected ||
+              !worktree.branch ||
+              setup?.status === 'running'
+            }
+            aria-label={`Push worktree ${worktree.branch || worktree.path}`}
+            title={worktree.branch ? 'Push this branch' : 'Check out a branch to push'}
+            onClick={() => void sync('push')}
+          >
+            {pending === 'push' ? (
+              <LoaderCircle size={13} className="spinning" />
+            ) : (
+              <Upload size={13} />
+            )}
+            {pending === 'push' ? 'Pushing …' : 'Push'}
+          </button>
+        )}
         <button
           className="worktree-sync"
           disabled={
-            pending || worktree.missing || disconnected || (!worktree.isMain && !worktree.branch)
+            !!pending ||
+            worktree.missing ||
+            disconnected ||
+            !worktree.branch ||
+            setup?.status === 'running'
           }
-          aria-label={
-            worktree.isMain
-              ? 'Fetch base repository'
-              : `Push worktree ${worktree.branch || worktree.path}`
-          }
-          title={
-            worktree.isMain
-              ? 'Fetch all remotes'
-              : worktree.branch
-                ? 'Push this branch'
-                : 'Check out a branch to push'
-          }
-          onClick={() => void sync()}
+          aria-label={`Merge origin/main into ${worktree.branch || worktree.path}`}
+          title="Fetch origin/main and merge it into this branch"
+          onClick={() => void sync('merge')}
         >
-          {pending ? (
+          {pending === 'merge' ? (
             <LoaderCircle size={13} className="spinning" />
-          ) : worktree.isMain ? (
-            <Download size={13} />
           ) : (
-            <Upload size={13} />
+            <GitMerge size={13} />
           )}
-          {pending
-            ? worktree.isMain
-              ? 'Fetching …'
-              : 'Pushing …'
-            : worktree.isMain
-              ? 'Fetch'
-              : 'Push'}
+          {pending === 'merge' ? 'Merging …' : 'Merge origin/main'}
         </button>
         <button
           className="icon-button worktree-edit"
@@ -472,7 +483,7 @@ function WorktreeCard({
         {!worktree.isMain && (
           <button
             className="icon-button danger-hover"
-            disabled={pending}
+            disabled={!!pending}
             title="Remove worktree"
             aria-label={`Remove worktree ${worktree.branch}`}
             onClick={() => onRemove(worktree)}

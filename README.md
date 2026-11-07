@@ -105,7 +105,11 @@ The **Base repository** has its own collapsible section above the linked worktre
 
 Drag worktrees into **On hold** to set them aside, and back into the active section to resume them. The pause/play buttons provide the same action without dragging. This is an organizational grouping: shells and agents keep running, and the selected terminal stays open. Group membership, order, and section collapse states are saved per workspace and survive restarts; newly discovered worktrees are appended.
 
-Click **Fetch** in the base repository to fetch all remotes without merging or changing your checkout. Click **Push** on a worktree to publish its current branch. Push uses `branch.<name>.pushRemote`, then `remote.pushDefault`, then the upstream remote, falling back to `origin` or a single configured remote. The first push sets an upstream; existing upstream tracking is preserved when pushing to a fork. A push to the upstream remote respects its target branch name. Only the selected branch is pushed, without forcing updates.
+Click **Fetch** below the repository name to fetch all remotes without merging or changing your checkout. The adjacent dropdown offers **Fetch --prune**, which also removes stale remote-tracking branches; local branches are preserved. These actions remain available when the base repository is collapsed.
+
+Each worktree has a **Merge origin/main** button. It first fetches `main` from `origin`, then merges it into that worktree's checked-out branch, using a fast-forward where possible or a merge commit otherwise. Commit or stash local changes and finish any existing Git operation first. Conflicts stay in the worktree and appear in the Changes panel; resolve and commit them, or run `git merge --abort` in its terminal. Merging is unavailable during worktree setup and for detached HEADs. Local and SSH workspaces use the same behavior.
+
+Click **Push** on a worktree to publish its current branch. Push uses `branch.<name>.pushRemote`, then `remote.pushDefault`, then the upstream remote, falling back to `origin` or a single configured remote. The first push sets an upstream; existing upstream tracking is preserved when pushing to a fork. A push to the upstream remote respects its target branch name. Only the selected branch is pushed, without forcing updates.
 
 Operations show progress and success/errors on the card. They use Git's existing credentials; for SSH workspaces, Git runs on the remote host. Configure authentication there if needed. Detached worktrees cannot be pushed until a branch is checked out.
 

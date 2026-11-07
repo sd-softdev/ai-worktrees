@@ -280,7 +280,8 @@ export interface DesktopAPI {
   retryHooks(workspaceId: string, path: string): Promise<Record<string, HookRun>>
   cancelHooks(workspaceId: string, path: string): Promise<void>
   removeWorktree(path: string): Promise<Workspace>
-  fetchRepository(workspaceId: string): Promise<string>
+  fetchRepository(workspaceId: string, prune?: boolean): Promise<string>
+  mergeOriginMain(workspaceId: string, path: string): Promise<string>
   pushWorktree(workspaceId: string, path: string): Promise<string>
   savePreferences(commonDir: string, preferences: WorkspacePreferences): Promise<void>
   getChanges(path: string): Promise<ChangedFile[]>
