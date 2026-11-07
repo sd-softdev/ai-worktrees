@@ -22,6 +22,7 @@ import type {
   InspectorTab,
 } from '../../../shared/types'
 import { errorMessage, useApp } from '../store'
+import { useWorktreeReview } from '../reviews'
 import { Modal } from './Modal'
 import { Reviews } from './Reviews'
 
@@ -40,6 +41,9 @@ export function Inspector() {
   const preferences = useApp((state) => state.preferences)
   const revision = useApp((state) => state.revision)
   const worktree = preferences.activeWorktree!
+  const activeWorktree = workspace.worktrees.find((item) => item.path === worktree)
+  const provider =
+    useWorktreeReview(activeWorktree)?.result?.provider ?? preferences.reviews.provider
   const tab = preferences.inspectorTab
   const [files, setFiles] = useState<ChangedFile[]>([])
   const [commits, setCommits] = useState<Commit[]>([])
@@ -163,7 +167,11 @@ export function Inspector() {
     { id: 'changes', label: 'Changes', icon: GitCompareArrows },
     { id: 'history', label: 'History', icon: History },
     { id: 'files', label: 'Files', icon: Folder },
-    { id: 'reviews', label: 'PR / MR', icon: GitPullRequest },
+    {
+      id: 'reviews',
+      label: provider === 'github' ? 'PR' : provider === 'gitlab' ? 'MR' : 'PR / MR',
+      icon: GitPullRequest,
+    },
   ]
 
   return (
@@ -319,11 +327,8 @@ export function Inspector() {
             />
           </>
         )}
-        {tab === 'reviews' && (
-          <Reviews
-            key={worktree}
-            worktree={workspace.worktrees.find((item) => item.path === worktree)!}
-          />
+        {tab === 'reviews' && activeWorktree && (
+          <Reviews key={worktree} worktree={activeWorktree} />
         )}
         {loading && (tab === 'changes' || tab === 'history') && (
           <div className="loading-indicator">

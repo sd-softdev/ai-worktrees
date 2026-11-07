@@ -16,11 +16,11 @@ function keyFor(worktree: Worktree): string {
   return JSON.stringify([workspaceSession, worktree.path, worktree.branch, preferences.reviews])
 }
 
-export function useWorktreeReview(worktree: Worktree): ReviewEntry | undefined {
+export function useWorktreeReview(worktree?: Worktree): ReviewEntry | undefined {
   const session = useApp((state) => state.workspaceSession)
   const preferences = useApp((state) => state.preferences.reviews)
-  const key = JSON.stringify([session, worktree.path, worktree.branch, preferences])
-  return useReviewState((state) => state.entries[key])
+  const key = worktree && JSON.stringify([session, worktree.path, worktree.branch, preferences])
+  return useReviewState((state) => (key ? state.entries[key] : undefined))
 }
 
 export async function refreshReview(worktree: Worktree, force = false): Promise<void> {
