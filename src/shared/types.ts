@@ -186,6 +186,7 @@ export interface WorkspacePreferences {
   reviews: ReviewPreferences
   hooks: HookPreferences
   worktreeOrder: string[]
+  repositoryCollapsed: boolean
   baseCollapsed: boolean
   onHoldCollapsed: boolean
   worktrees: Record<string, WorktreePreferences>
@@ -311,6 +312,7 @@ export function defaultPreferences(): WorkspacePreferences {
     reviews: { provider: 'auto', remote: '' },
     hooks: { nodePath: 'node', created: [] },
     worktreeOrder: [],
+    repositoryCollapsed: false,
     baseCollapsed: false,
     onHoldCollapsed: true,
     worktrees: {},

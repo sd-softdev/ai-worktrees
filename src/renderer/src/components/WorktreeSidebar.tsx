@@ -161,74 +161,98 @@ export function WorktreeSidebar() {
 
   return (
     <aside className="worktree-sidebar" aria-label="Worktrees">
-      <div className="repository-card">
-        <div className="repository-heading">
+      <section className="repository-overview" aria-label="Repository overview">
+        <button
+          className="repository-heading"
+          aria-expanded={!preferences.repositoryCollapsed}
+          aria-controls="repository-details"
+          aria-label={preferences.repositoryCollapsed ? 'Expand repository' : 'Collapse repository'}
+          title={workspace.rootPath}
+          onClick={() =>
+            useApp.getState().updatePreferences({
+              repositoryCollapsed: !preferences.repositoryCollapsed,
+            })
+          }
+        >
           <FolderGit2 size={22} />
           <strong>{workspace.name}</strong>
-        </div>
-        <span className="muted small">
-          {workspace.remote ? `SSH · ${workspace.remote.host}` : 'Git repository'}
-        </span>
-        <span className="repository-path" title={workspace.rootPath}>
-          {workspace.rootPath}
-        </span>
-        <div className="convention">
-          <Layers3 size={13} />
-          <span>
-            New worktrees in <code>.worktrees/</code>
-          </span>
-        </div>
-        <RepositoryActions key={workspace.id} />
-        <button className="workspace-hooks-button" onClick={() => setConfiguringHooks(true)}>
-          <Zap size={13} />
-          Hooks
-          <span className="count">
-            {preferences.hooks.created.filter((hook) => hook.enabled).length}
-          </span>
+          {preferences.repositoryCollapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
         </button>
-      </div>
-      {base && (
-        <section className="base-repository" aria-label="Base repository">
-          <div className="sidebar-heading">
-            <h2>Base repository</h2>
-            <button
-              className="icon-button"
-              aria-expanded={!preferences.baseCollapsed}
-              aria-label={
-                preferences.baseCollapsed ? 'Expand base repository' : 'Collapse base repository'
-              }
-              onClick={() =>
-                useApp.getState().updatePreferences({ baseCollapsed: !preferences.baseCollapsed })
-              }
-            >
-              {preferences.baseCollapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
-            </button>
-          </div>
-          {preferences.baseCollapsed && (
-            <button
-              className="base-summary"
-              onClick={() => useApp.getState().selectWorktree(base.path)}
-              disabled={base.missing}
-              aria-current={preferences.activeWorktree === base.path ? 'true' : undefined}
-            >
-              <GitBranch size={14} />
-              <strong>{base.branch || 'Detached HEAD'}</strong>
+        <div id="repository-details" hidden={preferences.repositoryCollapsed}>
+          <div className="repository-card">
+            <span className="muted small">
+              {workspace.remote ? `SSH · ${workspace.remote.host}` : 'Git repository'}
+            </span>
+            <span className="repository-path" title={workspace.rootPath}>
+              {workspace.rootPath}
+            </span>
+            <div className="convention">
+              <Layers3 size={13} />
               <span>
-                {base.missing
-                  ? 'Missing'
-                  : base.statusError
-                    ? 'Unknown'
-                    : base.changedFiles
-                      ? `${base.changedFiles} changed`
-                      : 'Clean'}
+                New worktrees in <code>.worktrees/</code>
+              </span>
+            </div>
+            <RepositoryActions key={workspace.id} />
+            <button className="workspace-hooks-button" onClick={() => setConfiguringHooks(true)}>
+              <Zap size={13} />
+              Hooks
+              <span className="count">
+                {preferences.hooks.created.filter((hook) => hook.enabled).length}
               </span>
             </button>
-          )}
-          <div hidden={preferences.baseCollapsed}>
-            <WorktreeCard worktree={base} onEdit={setEditing} onRemove={requestRemoval} />
           </div>
-        </section>
-      )}
+          {base && (
+            <section className="base-repository" aria-label="Base repository">
+              <div className="sidebar-heading">
+                <h2>Base repository</h2>
+                <button
+                  className="icon-button"
+                  aria-expanded={!preferences.baseCollapsed}
+                  aria-label={
+                    preferences.baseCollapsed
+                      ? 'Expand base repository'
+                      : 'Collapse base repository'
+                  }
+                  onClick={() =>
+                    useApp
+                      .getState()
+                      .updatePreferences({ baseCollapsed: !preferences.baseCollapsed })
+                  }
+                >
+                  {preferences.baseCollapsed ? (
+                    <ChevronRight size={15} />
+                  ) : (
+                    <ChevronDown size={15} />
+                  )}
+                </button>
+              </div>
+              {preferences.baseCollapsed && (
+                <button
+                  className="base-summary"
+                  onClick={() => useApp.getState().selectWorktree(base.path)}
+                  disabled={base.missing}
+                  aria-current={preferences.activeWorktree === base.path ? 'true' : undefined}
+                >
+                  <GitBranch size={14} />
+                  <strong>{base.branch || 'Detached HEAD'}</strong>
+                  <span>
+                    {base.missing
+                      ? 'Missing'
+                      : base.statusError
+                        ? 'Unknown'
+                        : base.changedFiles
+                          ? `${base.changedFiles} changed`
+                          : 'Clean'}
+                  </span>
+                </button>
+              )}
+              <div hidden={preferences.baseCollapsed}>
+                <WorktreeCard worktree={base} onEdit={setEditing} onRemove={requestRemoval} />
+              </div>
+            </section>
+          )}
+        </div>
+      </section>
       <button className="primary-button new-worktree" onClick={() => setCreating(true)}>
         <Plus size={17} />
         New worktree

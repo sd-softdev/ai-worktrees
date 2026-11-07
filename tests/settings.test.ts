@@ -22,6 +22,7 @@ it('loads the latest queued layout and isolates metadata by repository', async (
   const last = {
     ...defaultPreferences(),
     leftWidth: 320,
+    repositoryCollapsed: true,
     targetBranch: 'main',
     worktreeOrder: ['/repo-one/.worktrees/b', '/repo-one/.worktrees/a'],
   }
@@ -55,9 +56,15 @@ it('adds optional review preferences to existing layouts without resetting them'
 })
 
 it('migrates grouping and collapse settings while keeping existing worktree tasks and layouts', () => {
-  const { baseCollapsed: _base, onHoldCollapsed: _hold, ...previous } = defaultPreferences()
+  const {
+    repositoryCollapsed: _repository,
+    baseCollapsed: _base,
+    onHoldCollapsed: _hold,
+    ...previous
+  } = defaultPreferences()
   const { onHold: _onHold, ...tree } = { ...defaultWorktreePreferences(), task: 'Keep this task' }
   const migrated = preferencesSchema.parse({ ...previous, worktrees: { '/repo/topic': tree } })
+  expect(migrated.repositoryCollapsed).toBe(false)
   expect(migrated.baseCollapsed).toBe(false)
   expect(migrated.onHoldCollapsed).toBe(true)
   expect(migrated.worktrees['/repo/topic']).toEqual({ ...tree, onHold: false })

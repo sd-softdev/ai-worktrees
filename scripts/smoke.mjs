@@ -482,6 +482,20 @@ try {
     'HELD_SESSION=still-alive',
   )
 
+  await page.getByRole('button', { name: 'Collapse repository', exact: true }).click()
+  await expect(page.locator('.repository-heading')).toContainText('demo project')
+  await expect(page.locator('.repository-card')).toBeHidden()
+  await expect(page.locator('.base-repository')).toBeHidden()
+  await expect(page.getByRole('button', { name: 'New worktree', exact: true })).toBeVisible()
+  await expect(page.locator('.active-worktrees .worktree-name strong')).toBeVisible()
+  await terminalCommand(probe('session', 'FEATURE_SESSION', 'COLLAPSED_SESSION'))
+  await expect(page.locator('.terminal-workspace:visible .xterm-rows')).toContainText(
+    'COLLAPSED_SESSION=still-alive',
+  )
+  await page.getByRole('button', { name: 'Expand repository', exact: true }).press('Enter')
+  await expect(page.locator('.repository-card')).toBeVisible()
+  await expect(page.locator('.base-summary')).toBeVisible()
+
   await page.getByRole('button', { name: 'Split terminal side by side' }).click()
   await expect(page.locator('.terminal-workspace:visible .terminal-pane')).toHaveCount(2)
   await expect(page.locator('.terminal-workspace:visible .terminal-process.running')).toHaveCount(2)
@@ -558,12 +572,19 @@ try {
 
   // Quit deliberately, then verify saved layout and fresh shells after restart.
   await page.locator('.worktree-group-toggle').click()
+  await page.getByRole('button', { name: 'Collapse repository', exact: true }).click()
   await app.evaluate(({ dialog }) => {
     dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false })
   })
   await app.close()
   app = null
   await launch()
+  await expect(
+    page.getByRole('button', { name: 'Expand repository', exact: true }),
+  ).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.locator('.repository-card')).toBeHidden()
+  await expect(page.locator('.base-repository')).toBeHidden()
+  await page.getByRole('button', { name: 'Expand repository', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Expand base repository' })).toBeVisible()
   expect((await hookReceipts()).length).toBe(3)
   await expect(page.locator('.worktree-group-toggle')).toHaveAttribute('aria-expanded', 'false')

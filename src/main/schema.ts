@@ -85,6 +85,7 @@ export const preferencesSchema = z.object({
   reviews: reviewPreferencesSchema.default({ provider: 'auto', remote: '' }),
   hooks: hookPreferencesSchema.default({ nodePath: 'node', created: [] }),
   worktreeOrder: z.array(pathSchema).max(10_000).default([]),
+  repositoryCollapsed: z.boolean().default(false),
   baseCollapsed: z.boolean().default(false),
   onHoldCollapsed: z.boolean().default(true),
   worktrees: z.record(

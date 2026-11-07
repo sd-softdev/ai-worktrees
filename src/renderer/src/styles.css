@@ -262,9 +262,12 @@ svg {
   height: 100%;
   background: linear-gradient(120deg, #131621, #10131b);
 }
+.repository-overview {
+  flex-shrink: 0;
+}
 .repository-card {
   flex-shrink: 0;
-  padding: 16px 14px 13px;
+  padding: 0 14px 13px;
   display: flex;
   align-items: flex-start;
   flex-direction: column;
@@ -276,9 +279,19 @@ svg {
   align-items: center;
   gap: 10px;
   width: 100%;
-  margin-bottom: 3px;
+  padding: 16px 14px 10px;
+  text-align: left;
+}
+.repository-heading:hover {
+  background: #ffffff06;
+}
+.repository-heading[aria-expanded='false'] {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
 }
 .repository-heading strong {
+  flex: 1;
+  min-width: 0;
   font-size: 15px;
   overflow: hidden;
   text-overflow: ellipsis;
