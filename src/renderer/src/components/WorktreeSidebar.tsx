@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Pause,
   Play,
+  Zap,
 } from 'lucide-react'
 import { leaves } from '../../../shared/layout'
 import { orderedWorktrees } from '../../../shared/worktree-order'
@@ -25,6 +26,7 @@ import { ReviewBadge } from './Reviews'
 import { errorMessage, refreshWorkspace, useApp } from '../store'
 import { Modal } from './Modal'
 import { APP_VERSION } from '../../../shared/version'
+import { HookSettings } from './Hooks'
 
 export const taskLabels: Record<TaskStatus, string> = {
   todo: 'To do',
@@ -37,6 +39,7 @@ export function WorktreeSidebar() {
   const workspace = useApp((state) => state.workspace)!
   const preferences = useApp((state) => state.preferences)
   const [creating, setCreating] = useState(false)
+  const [configuringHooks, setConfiguringHooks] = useState(false)
   const [editing, setEditing] = useState<Worktree | null>(null)
   const [removing, setRemoving] = useState<Worktree | null>(null)
   const [removeError, setRemoveError] = useState<string | null>(null)
@@ -174,6 +177,13 @@ export function WorktreeSidebar() {
             New worktrees in <code>.worktrees/</code>
           </span>
         </div>
+        <button className="workspace-hooks-button" onClick={() => setConfiguringHooks(true)}>
+          <Zap size={13} />
+          Hooks
+          <span className="count">
+            {preferences.hooks.created.filter((hook) => hook.enabled).length}
+          </span>
+        </button>
       </div>
       {base && (
         <section className="base-repository" aria-label="Base repository">
@@ -270,6 +280,7 @@ export function WorktreeSidebar() {
         <span className="version">v{APP_VERSION}</span>
       </div>
       {creating && <CreateWorktreeDialog onClose={() => setCreating(false)} />}
+      {configuringHooks && <HookSettings onClose={() => setConfiguringHooks(false)} />}
       {editing && <TaskDialog worktree={editing} onClose={() => setEditing(null)} />}
       {removing && (
         <Modal title="Remove worktree" onClose={() => !busy && setRemoving(null)}>
@@ -315,6 +326,7 @@ function WorktreeCard({
     useApp((state) => state.preferences.worktrees[worktree.path]) ?? defaultWorktreePreferences()
   const active = useApp((state) => state.preferences.activeWorktree === worktree.path)
   const terminals = useApp((state) => state.terminals)
+  const setup = useApp((state) => state.workspace?.hookRuns?.[worktree.path])
   const disconnected = useApp((state) => state.remoteStatus?.state === 'disconnected')
   const [pending, setPending] = useState(false)
   const [result, setResult] = useState<{ error: boolean; message: string } | null>(null)
@@ -390,6 +402,18 @@ function WorktreeCard({
           )}
         </div>
         <ReviewBadge worktree={worktree} />
+        {setup && (
+          <div className={`worktree-setup ${setup.status}`}>
+            <Zap size={12} />
+            {setup.status === 'running'
+              ? 'Setting up …'
+              : setup.status === 'succeeded'
+                ? 'Setup complete'
+                : setup.status === 'failed'
+                  ? 'Setup failed'
+                  : 'Setup cancelled'}
+          </div>
+        )}
       </button>
       <div className="worktree-actions">
         {dragHandle}
@@ -489,7 +513,9 @@ function CreateWorktreeDialog({ onClose }: { onClose: () => void }) {
       app.updateWorkspace(result.workspace)
       app.updateWorktree(result.preferences.activeWorktree!, { task })
       app.selectWorktree(result.preferences.activeWorktree!)
-      app.addTerminal(result.preferences.activeWorktree!)
+      const setup = result.workspace.hookRuns?.[result.preferences.activeWorktree!]
+      if (!setup || setup.status === 'succeeded')
+        app.addTerminal(result.preferences.activeWorktree!)
       onClose()
     } catch (error) {
       setError(errorMessage(error))

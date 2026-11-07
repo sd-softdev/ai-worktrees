@@ -15,11 +15,13 @@ import {
 } from '../main/git'
 import { listFiles, readPreview } from '../main/files'
 import { ReviewService } from '../main/reviews'
-import { reviewPreferencesSchema } from '../main/schema'
+import { hookPreferencesSchema, reviewPreferencesSchema } from '../main/schema'
+import { HookRunner } from '../main/hooks'
 import type { DiffRequest, Workspace } from '../shared/types'
 
 let workspace: Workspace | null = null
 const reviews = new ReviewService()
+const hooks = new HookRunner()
 const resolveDirectory = (directory: string) =>
   directory === '~' || !directory
     ? os.homedir()
@@ -61,6 +63,16 @@ async function dispatch(method: string, args: unknown[]): Promise<unknown> {
     }
     case 'changes':
       return changes(requireWorktree(directory).path)
+    case 'hooks:start':
+      return hooks.start(
+        workspace!,
+        requireWorktree(directory),
+        hookPreferencesSchema.parse(args[1]),
+      )
+    case 'hooks:state':
+      return hooks.snapshots()
+    case 'hooks:cancel':
+      return hooks.cancel(requireWorktree(directory).path)
     case 'fetch': {
       const worktree = requireWorktree(directory)
       if (!worktree.isMain) throw new Error('Fetch must run in the base repository.')
@@ -117,5 +129,11 @@ input.on('line', (line) => {
     (error) => send({ id: message.id, error: (error as Error).message }),
   )
 })
-input.on('close', () => process.exit(0))
+const shutdown = () => {
+  hooks.clear()
+  process.exit(0)
+}
+input.on('close', shutdown)
+process.on('SIGTERM', shutdown)
+process.on('SIGHUP', shutdown)
 send({ event: 'ready', protocol: 1, platform: process.platform, home: os.homedir() })

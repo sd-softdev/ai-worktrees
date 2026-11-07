@@ -52,6 +52,13 @@ git('config', 'core.autocrlf', 'false')
 await writeFile(path.join(repository, 'README.md'), '# Aurora App\n\nDesktop smoke-test fixture.\n')
 await mkdir(path.join(repository, 'src'))
 await writeFile(path.join(repository, 'src', 'app.ts'), 'export const name = "Aurora"\n')
+await writeFile(path.join(repository, '.gitignore'), '.hook-runs\n')
+await writeFile(
+  path.join(repository, 'setup.mts'),
+  await readFile(path.join(project, 'scripts/fixtures/hook-setup.mts')),
+)
+const hookControl = path.join(directory, 'hook-control')
+await writeFile(hookControl, 'wait')
 git('add', '.')
 git(
   '-c',
@@ -311,6 +318,14 @@ try {
     'FLOW_CONTROL_COMPLETE',
   )
 
+  await page.getByRole('button', { name: /^Hooks/ }).click()
+  await page.getByLabel('Node.js executable').fill(process.execPath)
+  await page.getByRole('button', { name: 'Add hook' }).click()
+  await page.getByLabel('Name', { exact: true }).fill('Native TypeScript setup')
+  await page.locator('.hook-editor select').selectOption('typescript')
+  await page.getByLabel('Script path').fill('setup.mts')
+  await page.getByLabel('Arguments (one per line)').fill(hookControl)
+  await page.getByRole('button', { name: 'Save hooks' }).click()
   await page.getByRole('button', { name: 'New worktree', exact: true }).click()
   await page.getByLabel('Branch name').fill('feat/auth-ui')
   await page.getByRole('textbox', { name: 'Task optional' }).fill('Implement the login screen')
@@ -319,6 +334,42 @@ try {
   await expect(page.locator('.worktree-card.active .worktree-name strong')).toHaveText(
     'feat/auth-ui',
   )
+  const setup = page.locator('.terminal-workspace:visible .hook-status')
+  await expect(setup.locator('.hook-output')).toContainText('HOOK_READY:feat/auth-ui')
+  await expect(page.getByRole('button', { name: 'Open terminal', exact: true })).toBeDisabled()
+  await expect(page.locator('.terminal-workspace:visible .terminal-pane')).toHaveCount(0)
+  const featurePath = await page.evaluate(async () => {
+    const opened = await window.desktop.bootstrap()
+    return opened.workspace.worktrees.find((tree) => tree.branch === 'feat/auth-ui').path
+  })
+  const receipt = path.join(featurePath, '.hook-runs')
+  const hookReceipts = async () =>
+    (await readFile(receipt, 'utf8')).trim().split('\n').map(JSON.parse)
+  await writeFile(hookControl, 'fail')
+  await expect(setup.getByRole('status')).toHaveText('Setup failed')
+  await expect(setup).toContainText('HOOK_FAILURE_DETAIL')
+  await expect(page.getByRole('button', { name: 'Open terminal', exact: true })).toBeEnabled()
+  await expect(page.locator('.terminal-workspace:visible .terminal-pane')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Open terminal', exact: true }).click()
+  await expect(page.locator('.terminal-workspace:visible .terminal-process.running')).toHaveCount(1)
+  await setup.getByRole('button', { name: 'Retry setup' }).click()
+  await expect(setup).toContainText('Close this worktree’s terminals before retrying setup.')
+  await page.getByRole('button', { name: 'Close terminal', exact: true }).click()
+  await writeFile(hookControl, 'wait')
+  await setup.getByRole('button', { name: 'Retry setup' }).click()
+  await expect.poll(async () => (await hookReceipts()).length).toBe(2)
+  await setup.getByRole('button', { name: 'Cancel setup' }).click()
+  await expect(setup.getByRole('status')).toHaveText('Setup cancelled')
+  await setup.getByRole('button', { name: 'Retry setup' }).click()
+  await expect.poll(async () => (await hookReceipts()).length).toBe(3)
+  await writeFile(hookControl, 'success')
+  await expect(setup.getByRole('status')).toHaveText('Setup complete')
+  expect((await hookReceipts())[0]).toMatchObject({
+    branch: 'feat/auth-ui',
+    event: 'worktree.created',
+    worktree: featurePath,
+    cwd: featurePath,
+  })
   await expect(page.locator('.terminal-workspace:visible .terminal-process.running')).toHaveCount(1)
   await terminalCommand(probe('feature'))
   await expect(page.locator('.terminal-workspace:visible .xterm-rows')).toContainText(
@@ -495,6 +546,7 @@ try {
   app = null
   await launch()
   await expect(page.getByRole('button', { name: 'Expand base repository' })).toBeVisible()
+  expect((await hookReceipts()).length).toBe(3)
   await expect(page.locator('.worktree-group-toggle')).toHaveAttribute('aria-expanded', 'false')
   await page.locator('.worktree-group-toggle').click()
   await expect(page.locator('.held-worktrees .worktree-name strong')).toHaveText('feat/auth-ui')
@@ -531,7 +583,7 @@ try {
   expect(
     await readFile(path.join(tracked.slice('worktree '.length), 'src/auth.ts'), 'utf8'),
   ).toContain('login = true')
-  const featurePath = tracked.slice('worktree '.length)
+  expect(tracked.slice('worktree '.length)).toBe(featurePath)
   execFileSync('git', ['-C', featurePath, 'add', '--all'])
   execFileSync('git', [
     '-C',
@@ -551,7 +603,7 @@ try {
   expect(git('show', 'feat/auth-ui:src/auth.ts')).toContain('login = true')
   expect(errors).toEqual([])
   console.log(
-    'Desktop smoke test passed: PTY, full-screen TUI, flow control, nested splits, shell restart, worktree isolation, drag-and-drop order and On hold, collapsed base, fetch/push, session continuity, Git views, persistence and safe removal.',
+    'Desktop smoke test passed: native TypeScript hooks, setup gating, failure/retry/cancel, PTY, full-screen TUI, flow control, nested splits, shell restart, worktree isolation, drag-and-drop order and On hold, collapsed base, fetch/push, session continuity, Git views, persistence and safe removal.',
   )
 } catch (error) {
   if (page && !page.isClosed())

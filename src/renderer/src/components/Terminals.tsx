@@ -7,10 +7,12 @@ import { leaves } from '../../../shared/layout'
 import type { SequencedTerminalEvent, TerminalLayout, TerminalLeaf } from '../../../shared/types'
 import { errorMessage, useApp } from '../store'
 import { ResizeHandle } from './ResizeHandle'
+import { HookStatus } from './Hooks'
 import '@xterm/xterm/css/xterm.css'
 
 export function TerminalWorkspace({ worktree, visible }: { worktree: string; visible: boolean }) {
   const settings = useApp((state) => state.preferences.worktrees[worktree])
+  const settingUp = useApp((state) => state.workspace?.hookRuns?.[worktree]?.status === 'running')
   const activeTab = settings?.tabs.find((tab) => tab.id === settings.activeTab) ?? settings?.tabs[0]
   const tabs = settings?.tabs ?? []
   const [renaming, setRenaming] = useState<string | null>(null)
@@ -26,6 +28,7 @@ export function TerminalWorkspace({ worktree, visible }: { worktree: string; vis
   }
   return (
     <section className="terminal-workspace" hidden={!visible} aria-label={`Terminals ${worktree}`}>
+      <HookStatus worktree={worktree} />
       <div className="terminal-tabs" role="tablist" aria-label="Terminal tabs">
         {tabs.map((tab) => (
           <div
@@ -78,6 +81,7 @@ export function TerminalWorkspace({ worktree, visible }: { worktree: string; vis
           className="icon-button add-tab"
           title="New terminal (⌘T / Ctrl+T)"
           aria-label="New terminal"
+          disabled={settingUp}
           onClick={() => useApp.getState().addTerminal(worktree)}
         >
           <Plus size={17} />
@@ -87,10 +91,15 @@ export function TerminalWorkspace({ worktree, visible }: { worktree: string; vis
         {tabs.length === 0 && (
           <div className="empty-terminal">
             <TerminalSquare size={36} />
-            <h2>Room for your next task</h2>
-            <p>Start a shell and launch your agent or development server.</p>
+            <h2>{settingUp ? 'Preparing your worktree' : 'Room for your next task'}</h2>
+            <p>
+              {settingUp
+                ? 'The first shell opens after setup completes.'
+                : 'Start a shell and launch your agent or development server.'}
+            </p>
             <button
               className="primary-button"
+              disabled={settingUp}
               onClick={() => useApp.getState().addTerminal(worktree)}
             >
               <Plus size={16} />

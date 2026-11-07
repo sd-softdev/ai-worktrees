@@ -249,6 +249,15 @@ function registerIpc(): void {
     const worktreePath = pathSchema.parse(value)
     return workspace.serialize(() => workspace.remove(worktreePath))
   })
+  handle('hooks:state', (id) => workspace.hookRuns(pathSchema.parse(id)))
+  handle('hooks:retry', (id, directory) =>
+    workspace.serialize(() =>
+      workspace.retryHooks(pathSchema.parse(id), pathSchema.parse(directory)),
+    ),
+  )
+  handle('hooks:cancel', (id, directory) =>
+    workspace.cancelHooks(pathSchema.parse(id), pathSchema.parse(directory)),
+  )
   handle('git:fetch', (id) => {
     const workspaceId = pathSchema.parse(id)
     return workspace.serialize(() => workspace.fetch(workspaceId))
@@ -293,13 +302,18 @@ function registerIpc(): void {
     ),
   )
   handle('terminal:open', (id, worktreePath, cols, rows) =>
-    terminals.open(
-      idSchema.parse(id),
-      workspace.requireWorktree(pathSchema.parse(worktreePath)).path,
-      sizeSchema.parse(cols),
-      sizeSchema.parse(rows),
-      workspace.backend.terminal?.(pathSchema.parse(worktreePath)),
-    ),
+    workspace.serialize(async () => {
+      const directory = pathSchema.parse(worktreePath)
+      if (workspace.requireWorkspace().hookRuns?.[directory]?.status === 'running')
+        throw new Error('Wait for worktree setup to finish before opening a terminal.')
+      return terminals.open(
+        idSchema.parse(id),
+        workspace.requireWorktree(pathSchema.parse(worktreePath)).path,
+        sizeSchema.parse(cols),
+        sizeSchema.parse(rows),
+        workspace.backend.terminal?.(pathSchema.parse(worktreePath)),
+      )
+    }),
   )
   handle('terminal:close', (id) => terminals.close(idSchema.parse(id)))
   ipcMain.on('terminal:write', (event, id, data) => {

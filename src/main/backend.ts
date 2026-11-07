@@ -8,6 +8,8 @@ import type {
   ReviewResult,
   Workspace,
   Worktree,
+  HookPreferences,
+  HookRun,
 } from '../shared/types'
 import {
   addWorktree,
@@ -21,8 +23,10 @@ import {
 } from './git'
 import { listFiles, readPreview } from './files'
 import { ReviewService } from './reviews'
+import { HookRunner } from './hooks'
 
 const reviews = new ReviewService()
+const hooks = new HookRunner()
 
 export interface TerminalLaunch {
   file: string
@@ -44,6 +48,13 @@ export interface WorkspaceBackend {
   listFiles(directory: string, relativePath: string): Promise<FileEntry[]>
   readFile(directory: string, relativePath: string): Promise<FilePreview>
   terminal?(directory: string): TerminalLaunch
+  startHooks(
+    workspace: Workspace,
+    worktree: Worktree,
+    preferences: HookPreferences,
+  ): Promise<HookRun>
+  hookRuns(): Promise<HookRun[]>
+  cancelHooks(directory: string): Promise<void>
   close(): void
 }
 
@@ -59,5 +70,9 @@ export const localBackend: WorkspaceBackend = {
   diff,
   listFiles,
   readFile: readPreview,
-  close() {},
+  startHooks: async (workspace, worktree, preferences) =>
+    hooks.start(workspace, worktree, preferences),
+  hookRuns: async () => hooks.snapshots(),
+  cancelHooks: async (directory) => hooks.cancel(directory),
+  close: () => hooks.clear(),
 }

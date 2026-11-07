@@ -35,17 +35,20 @@ button:disabled {
 }
 button,
 input,
-select {
+select,
+textarea {
   outline-offset: 3px;
 }
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
+.hook-settings textarea:focus-visible,
 [role='separator']:focus-visible {
   outline: 2px solid var(--purple);
 }
 input,
-select {
+select,
+.hook-settings textarea {
   color: var(--text);
   background: #0c0e16;
   border: 1px solid var(--border-strong);
@@ -594,6 +597,92 @@ svg {
   color: var(--muted);
   font-size: 11px;
   line-height: 1.6;
+}
+.workspace-hooks-button,
+.hook-status-heading,
+.hook-editor-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.workspace-hooks-button {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.hook-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: 65vh;
+  overflow-y: auto;
+}
+.hook-editor {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 14px;
+  min-width: 0;
+}
+.hook-editor > label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.hook-editor-heading {
+  justify-content: space-between;
+}
+.hook-settings textarea {
+  resize: vertical;
+  font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+.hook-status {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-strong);
+  padding: 10px 14px;
+  background: #171424;
+  font-size: 11px;
+}
+.hook-status-heading strong {
+  flex: 1;
+}
+.hook-status-heading button {
+  font-size: 11px;
+  padding: 5px 8px;
+}
+.hook-status summary {
+  cursor: pointer;
+  color: var(--muted);
+  margin-top: 8px;
+}
+.hook-output {
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  margin: 8px 0 0;
+}
+.hook-error {
+  color: var(--red);
+  margin-top: 8px;
+}
+.worktree-setup {
+  display: flex;
+  gap: 5px;
+  margin-top: 7px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.worktree-setup.failed,
+.hook-status.failed strong {
+  color: var(--red);
+}
+.worktree-setup.succeeded,
+.hook-status.succeeded strong {
+  color: var(--green);
 }
 .git-operation-result {
   margin: 0 10px 9px;

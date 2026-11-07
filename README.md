@@ -91,6 +91,7 @@ Select **Open workspace** to open a checked-out Git repository. The app also dis
 - File tree with text previews and readable diffs.
 - Resizable sidebars and persistent layouts per repository.
 - A pinned base-repository section, reorderable worktrees, and one-click Git fetch/push.
+- An On hold group and configurable shell, JavaScript, and native TypeScript setup hooks.
 - Hosts from your OpenSSH configuration, remote folder selection, and the same worktree, Git, and file operations over SSH.
 - In-app stable-release checks, verified downloads with progress and cancellation, and platform-specific installation.
 
@@ -107,6 +108,28 @@ Drag worktrees into **On hold** to set them aside, and back into the active sect
 Click **Fetch** in the base repository to fetch all remotes without merging or changing your checkout. Click **Push** on a worktree to publish its current branch. Push uses `branch.<name>.pushRemote`, then `remote.pushDefault`, then the upstream remote, falling back to `origin` or a single configured remote. The first push sets an upstream; existing upstream tracking is preserved when pushing to a fork. A push to the upstream remote respects its target branch name. Only the selected branch is pushed, without forcing updates.
 
 Operations show progress and success/errors on the card. They use Git's existing credentials; for SSH workspaces, Git runs on the remote host. Configure authentication there if needed. Detached worktrees cannot be pushed until a branch is checked out.
+
+### Worktree setup hooks
+
+Click **Hooks** below the repository name to configure **Worktree created** steps for that workspace. Enabled steps run sequentially after the app successfully creates a worktree. Refreshing, reopening, reconnecting, and worktrees created outside the app do not trigger hooks. No repository configuration is loaded automatically.
+
+- **Shell command:** uses your shell on macOS/Linux or `cmd.exe` on Windows, with standard input closed.
+- **JavaScript / TypeScript file:** uses the configured **Node.js executable**. Script paths are relative to the new worktree or absolute; arguments are entered one per line and passed literally.
+- **TypeScript requires Node.js 22.18 or later**, using native type stripping (`--experimental-strip-types`), without `tsx`. Use erasable types; enums, parameter properties, and other syntax requiring code transformation are unsupported. Node's native module resolution applies; `tsconfig.json` path mappings are not applied. `.mts` explicitly selects ES modules.
+- **SSH workspaces:** hooks, script paths, and the configured Node.js executable all belong to the remote host.
+
+Every step runs with the new worktree as its working directory and receives:
+
+| Variable          | Value                           |
+| ----------------- | ------------------------------- |
+| `WORKTREE_EVENT`  | `worktree.created`              |
+| `WORKTREE_PATH`   | New worktree's absolute path    |
+| `WORKTREE_BRANCH` | New branch name                 |
+| `REPOSITORY_PATH` | Base repository's absolute path |
+
+The first terminal opens automatically after successful setup. During setup, terminal creation is blocked. A failed, timed-out, or cancelled step stops the sequence; the worktree and its setup output remain available. Use **Retry setup** to rerun all currently enabled steps, or open a terminal manually. Close that worktree's terminals before retrying. Steps should tolerate partial results from earlier attempts.
+
+Each step has a timeout (default 300 seconds, configurable from 1–3600). **Cancel setup** terminates its process tree. The last 65,536 characters of combined output are retained per run, separately from layout settings. Switching workspaces or quitting stops setup; interrupted runs are shown as cancelled after reopening and require an explicit retry.
 
 ### Pull requests and merge requests
 

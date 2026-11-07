@@ -5,8 +5,9 @@ import {
   defaultPreferences,
   type RemoteWorkspaceReference,
   type WorkspacePreferences,
+  type HookRun,
 } from '../shared/types'
-import { preferencesSchema, remoteReferenceSchema } from './schema'
+import { hookRunsSchema, preferencesSchema, remoteReferenceSchema } from './schema'
 
 export class SettingsStore {
   private queue: Promise<unknown> = Promise.resolve()
@@ -67,6 +68,21 @@ export class SettingsStore {
 
   save(commonDir: string, preferences: WorkspacePreferences): Promise<void> {
     return this.write(this.filename(commonDir), preferences)
+  }
+
+  async loadHookRuns(workspaceId: string): Promise<Record<string, HookRun>> {
+    await this.queue
+    try {
+      return hookRunsSchema.parse(
+        JSON.parse(await readFile(`${this.filename(workspaceId)}.hooks`, 'utf8')),
+      )
+    } catch {
+      return {}
+    }
+  }
+
+  saveHookRuns(workspaceId: string, runs: Record<string, HookRun>): Promise<void> {
+    return this.write(`${this.filename(workspaceId)}.hooks`, runs)
   }
 
   remember(rootPath: string | RemoteWorkspaceReference): Promise<void> {

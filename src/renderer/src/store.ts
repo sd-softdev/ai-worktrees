@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { leaves, removeLeaf, replaceNode } from '../../shared/layout'
 import { orderedWorktrees } from '../../shared/worktree-order'
+import { mergeHookRuns } from '../../shared/hooks'
 import {
   defaultPreferences,
   defaultWorktreePreferences,
@@ -11,6 +12,7 @@ import {
   type WorkspacePreferences,
   type WorktreePreferences,
   type RemoteStatus,
+  type HookRun,
 } from '../../shared/types'
 
 type TerminalState = { state: 'starting' | 'running' | 'exited' | 'error'; exitCode?: number }
@@ -29,6 +31,7 @@ interface AppState {
   setRemoteStatus(status: RemoteStatus): void
   acceptWorkspace(value: OpenWorkspace): void
   updateWorkspace(value: Workspace): void
+  updateHookRuns(workspaceId: string, runs: Record<string, HookRun>): void
   setError(error: unknown): void
   setLoading(loading: boolean): void
   updatePreferences(value: Partial<WorkspacePreferences>): void
@@ -92,13 +95,17 @@ export const useApp = create<AppState>((set, get) => ({
     })
     if (
       preferences.activeWorktree &&
-      !preferences.worktrees[preferences.activeWorktree]?.tabs.length
+      !preferences.worktrees[preferences.activeWorktree]?.tabs.length &&
+      (!workspace.hookRuns?.[preferences.activeWorktree] ||
+        workspace.hookRuns[preferences.activeWorktree].status === 'succeeded')
     ) {
       get().addTerminal(preferences.activeWorktree)
     }
   },
   updateWorkspace: (workspace) => {
     if (get().workspace?.id !== workspace.id) return
+    const previousRuns = get().workspace?.hookRuns
+    const nextRuns = workspace.hookRuns
     const validTerminals = new Set(
       workspace.worktrees
         .filter((worktree) => !worktree.missing)
@@ -108,11 +115,31 @@ export const useApp = create<AppState>((set, get) => ({
     const terminals = Object.fromEntries(
       Object.entries(get().terminals).filter(([id]) => validTerminals.has(id)),
     )
-    set({ workspace, terminals, revision: get().revision + 1 })
+    set({
+      workspace: { ...workspace, hookRuns: previousRuns },
+      terminals,
+      revision: get().revision + 1,
+    })
+    get().updateHookRuns(workspace.id, nextRuns ?? {})
     const active = get().preferences.activeWorktree
     if (!workspace.worktrees.some((item) => item.path === active && !item.missing)) {
       const next = workspace.worktrees.find((item) => !item.missing)
       if (next) get().selectWorktree(next.path)
+    }
+  },
+  updateHookRuns: (workspaceId, incoming) => {
+    const workspace = get().workspace
+    if (!workspace || workspace.id !== workspaceId) return
+    const runs = mergeHookRuns(workspace.hookRuns, incoming)
+    set({ workspace: { ...workspace, hookRuns: runs } })
+    for (const [directory, run] of Object.entries(runs)) {
+      if (
+        run.status === 'succeeded' &&
+        workspace.hookRuns?.[directory]?.status === 'running' &&
+        workspace.worktrees.some((tree) => tree.path === directory && !tree.missing) &&
+        !get().preferences.worktrees[directory]?.tabs.length
+      )
+        get().addTerminal(directory)
     }
   },
   setError: (error) => set({ error: error === null ? null : errorMessage(error) }),
@@ -174,6 +201,7 @@ export const useApp = create<AppState>((set, get) => ({
     })
   },
   addTerminal: (path) => {
+    if (get().workspace?.hookRuns?.[path]?.status === 'running') return
     const preferences = get().preferences.worktrees[path] ?? defaultWorktreePreferences()
     if (preferences.tabs.length >= 24) return
     const terminal = newLeaf()

@@ -76,6 +76,36 @@ export interface Workspace {
   branches: string[]
   defaultBase: string
   remote?: SshTarget
+  hookRuns?: Record<string, HookRun>
+}
+
+export interface WorktreeHook {
+  id: string
+  name: string
+  enabled: boolean
+  kind: 'shell' | 'javascript' | 'typescript'
+  command: string
+  args: string[]
+  timeoutSeconds: number
+}
+
+export interface HookPreferences {
+  nodePath: string
+  created: WorktreeHook[]
+}
+
+export interface HookRun {
+  id: string
+  revision: number
+  worktreePath: string
+  status: 'running' | 'succeeded' | 'failed' | 'cancelled'
+  step: number
+  total: number
+  name: string
+  output: string
+  error?: string
+  startedAt: number
+  finishedAt?: number
 }
 
 export interface SshTarget {
@@ -154,6 +184,7 @@ export interface WorkspacePreferences {
   rightWidth: number
   inspectorTab: InspectorTab
   reviews: ReviewPreferences
+  hooks: HookPreferences
   worktreeOrder: string[]
   baseCollapsed: boolean
   onHoldCollapsed: boolean
@@ -245,6 +276,9 @@ export interface DesktopAPI {
   onRemoteStatus(listener: (status: RemoteStatus) => void): () => void
   refreshWorkspace(): Promise<Workspace>
   createWorktree(input: CreateWorktreeInput): Promise<OpenWorkspace>
+  getHookRuns(workspaceId: string): Promise<Record<string, HookRun>>
+  retryHooks(workspaceId: string, path: string): Promise<Record<string, HookRun>>
+  cancelHooks(workspaceId: string, path: string): Promise<void>
   removeWorktree(path: string): Promise<Workspace>
   fetchRepository(workspaceId: string): Promise<string>
   pushWorktree(workspaceId: string, path: string): Promise<string>
@@ -274,6 +308,7 @@ export function defaultPreferences(): WorkspacePreferences {
     rightWidth: 340,
     inspectorTab: 'changes',
     reviews: { provider: 'auto', remote: '' },
+    hooks: { nodePath: 'node', created: [] },
     worktreeOrder: [],
     baseCollapsed: false,
     onHoldCollapsed: true,

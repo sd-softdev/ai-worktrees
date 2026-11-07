@@ -22,9 +22,11 @@ import { ResizeHandle } from './components/ResizeHandle'
 import { SshConnectionDialog, SshPrompts } from './components/SshConnection'
 import { Updates } from './components/Updates'
 import { useReviewPolling } from './reviews'
+import { useHookPolling } from './hooks'
 
 export function App() {
   useReviewPolling()
+  useHookPolling()
   const workspace = useApp((state) => state.workspace)
   const preferences = useApp((state) => state.preferences)
   const visited = useApp((state) => state.visited)

@@ -62,3 +62,11 @@ it('migrates grouping and collapse settings while keeping existing worktree task
   expect(migrated.onHoldCollapsed).toBe(true)
   expect(migrated.worktrees['/repo/topic']).toEqual({ ...tree, onHold: false })
 })
+
+it('keeps existing layouts and leaves hooks disabled when migrating older settings', () => {
+  const { hooks: _hooks, ...previous } = { ...defaultPreferences(), targetBranch: 'develop' }
+  expect(preferencesSchema.parse(previous)).toEqual({
+    ...previous,
+    hooks: { nodePath: 'node', created: [] },
+  })
+})

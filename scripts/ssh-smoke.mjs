@@ -18,20 +18,34 @@ await mkdir(path.join(project, 'artifacts'), { recursive: true })
 // Terminals and the SSH transport continue to use their normal environment.
 const helperBin = path.join(directory, 'helper-bin')
 const helperNode = path.join(directory, 'node with git-only PATH')
+const helperShell = path.join(directory, 'shell with git-only PATH')
 const quote = (value) => `'${value.replaceAll("'", "'\\''")}'`
 await mkdir(helperBin)
 await symlink(
   execFileSync('which', ['git'], { encoding: 'utf8' }).trim(),
   path.join(helperBin, 'git'),
 )
+// Keep the macOS login-shell PATH fallback inside the same isolated environment.
+await writeFile(
+  helperShell,
+  '#!/bin/sh\nif [ "$1" = "-ilc" ]; then shift; exec /bin/sh -c "$1"; fi\nexec /bin/sh "$@"\n',
+  { mode: 0o700 },
+)
 await writeFile(
   helperNode,
-  `#!/bin/sh\nexport PATH=${quote(helperBin)}\nexec ${quote(process.execPath)} "$@"\n`,
+  `#!/bin/sh\nexport PATH=${quote(helperBin)}\nexport SHELL=${quote(helperShell)}\nexec ${quote(process.execPath)} "$@"\n`,
   { mode: 0o700 },
 )
 const git = (...args) => execFileSync('git', ['-C', repository, ...args], { encoding: 'utf8' })
 git('init', '-b', 'main')
 await writeFile(path.join(repository, 'README.md'), '# Remote SSH workspace\n')
+await writeFile(path.join(repository, '.gitignore'), '.hook-runs\n')
+await writeFile(
+  path.join(repository, 'setup.mts'),
+  await readFile(path.join(project, 'scripts/fixtures/hook-setup.mts')),
+)
+const hookControl = path.join(directory, 'hook-control')
+await writeFile(hookControl, 'wait')
 git('add', '.')
 git(
   '-c',
@@ -134,11 +148,27 @@ try {
   await command('export SSH_SESSION=remote-alive')
   await command('printf "SSH_%s\\n" READY')
   await expect(page.locator('.terminal-workspace:visible .xterm-rows')).toContainText('SSH_READY')
+  await page.getByRole('button', { name: /^Hooks/ }).click()
+  await expect(page.locator('.hook-settings')).toContainText('SSH host workspace-smoke-host')
+  await page.getByLabel('Node.js executable').fill(helperNode)
+  await page.getByRole('button', { name: 'Add hook' }).click()
+  await page.locator('.hook-editor select').selectOption('typescript')
+  await page.getByLabel('Script path').fill('setup.mts')
+  await page.getByLabel('Arguments (one per line)').fill(hookControl)
+  await page.getByRole('button', { name: 'Save hooks' }).click()
   await page.getByRole('button', { name: 'New worktree', exact: true }).click()
   await page.getByLabel('Branch name').fill('feat/remote')
   await page.getByRole('button', { name: 'Create worktree', exact: true }).click()
   await expect(page.locator('.worktree-card.active .worktree-name strong')).toHaveText(
     'feat/remote',
+  )
+  await expect(page.locator('.terminal-workspace:visible .hook-output')).toContainText(
+    'HOOK_READY:feat/remote',
+  )
+  await expect(page.getByRole('button', { name: 'Open terminal', exact: true })).toBeDisabled()
+  await writeFile(hookControl, 'success')
+  await expect(page.locator('.terminal-workspace:visible .hook-status')).toContainText(
+    'Setup complete',
   )
   await expect(page.locator('.terminal-workspace:visible .terminal-process.running')).toHaveCount(1)
   await page.getByRole('button', { name: 'Push worktree feat/remote' }).click()
@@ -174,6 +204,13 @@ try {
     .find((line) => line.startsWith('worktree ') && line.includes('.worktrees'))
     .slice(9)
   expect(await readFile(path.join(remoteWorktree, 'remote.txt'), 'utf8')).toBe('REMOTE_FILE\n')
+  const receipt = await readFile(path.join(remoteWorktree, '.hook-runs'), 'utf8')
+  expect(JSON.parse(receipt)).toMatchObject({
+    branch: 'feat/remote',
+    event: 'worktree.created',
+    worktree: remoteWorktree,
+    cwd: remoteWorktree,
+  })
   await page.screenshot({ path: path.join(project, 'artifacts', 'ssh-workspace.png') })
   await server.disconnect()
   await expect(page.getByRole('button', { name: 'Reconnect' })).toBeVisible()
@@ -187,8 +224,36 @@ try {
     'RECONNECTED_READY',
   )
   expect(errors).toEqual([])
+  expect(await readFile(path.join(remoteWorktree, '.hook-runs'), 'utf8')).toBe(receipt)
+  await writeFile(hookControl, 'wait')
+  await page.getByRole('button', { name: 'New worktree', exact: true }).click()
+  await page.getByLabel('Branch name').fill('feat/interrupted')
+  await page.getByRole('button', { name: 'Create worktree', exact: true }).click()
+  const setup = page.locator('.terminal-workspace:visible .hook-status')
+  await expect(setup.locator('.hook-output')).toContainText('HOOK_READY:feat/interrupted')
+  const interruptedPath = await page.evaluate(async () => {
+    const opened = await window.desktop.bootstrap()
+    return opened.workspace.worktrees.find((tree) => tree.branch === 'feat/interrupted').path
+  })
+  const interruptedReceipt = path.join(interruptedPath, '.hook-runs')
+  await server.disconnect()
+  await expect(page.getByRole('button', { name: 'Reconnect' })).toBeVisible()
+  await page.getByRole('button', { name: 'Reconnect' }).click()
+  await page.getByLabel('Password / passphrase').fill(server.passphrase)
+  await page.getByRole('button', { name: 'Confirm', exact: true }).click()
+  await expect(setup.getByRole('status')).toHaveText('Setup cancelled')
+  await expect(page.locator('.terminal-workspace:visible .terminal-pane')).toHaveCount(0)
+  expect((await readFile(interruptedReceipt, 'utf8')).trim().split('\n')).toHaveLength(1)
+  await setup.getByRole('button', { name: 'Retry setup' }).click()
+  await expect
+    .poll(async () => (await readFile(interruptedReceipt, 'utf8')).trim().split('\n').length)
+    .toBe(2)
+  await writeFile(hookControl, 'success')
+  await expect(setup.getByRole('status')).toHaveText('Setup complete')
+  await expect(page.locator('.terminal-workspace:visible .terminal-process.running')).toHaveCount(1)
+  expect(errors).toEqual([])
   console.log(
-    'SSH desktop test passed: OpenSSH config, host trust, encrypted key, remote Git fetch/push, files, worktree creation, PTY, session continuity and reconnect.',
+    'SSH desktop test passed: OpenSSH config, host trust, encrypted key, remote Git fetch/push, files, native TypeScript hooks, setup interruption/retry, worktree creation, PTY, session continuity and reconnect.',
   )
 } catch (error) {
   if (page && !page.isClosed())

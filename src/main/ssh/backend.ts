@@ -9,6 +9,8 @@ import type {
   ReviewResult,
   Workspace,
   Worktree,
+  HookPreferences,
+  HookRun,
 } from '../../shared/types'
 import type { WorkspaceBackend } from '../backend'
 import { SshConnection } from './connection'
@@ -61,6 +63,19 @@ export class SshBackend implements WorkspaceBackend {
   }
   terminal(directory: string) {
     return this.connection.terminal(directory)
+  }
+  startHooks(
+    _workspace: Workspace,
+    worktree: Worktree,
+    preferences: HookPreferences,
+  ): Promise<HookRun> {
+    return this.connection.call('hooks:start', worktree.path, preferences)
+  }
+  hookRuns(): Promise<HookRun[]> {
+    return this.connection.call('hooks:state')
+  }
+  cancelHooks(directory: string): Promise<void> {
+    return this.connection.call('hooks:cancel', directory)
   }
   close() {
     this.connection.dispose()

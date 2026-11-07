@@ -42,6 +42,40 @@ export const reviewPreferencesSchema = z.object({
   remote: z.string().max(300),
 })
 
+export const hookPreferencesSchema = z.object({
+  nodePath: pathSchema,
+  created: z
+    .array(
+      z.object({
+        id: idSchema,
+        name: z.string().trim().min(1).max(160),
+        enabled: z.boolean(),
+        kind: z.enum(['shell', 'javascript', 'typescript']),
+        command: z.string().min(1).max(16_384),
+        args: z.array(z.string().max(4096)).max(100),
+        timeoutSeconds: z.number().int().min(1).max(3600),
+      }),
+    )
+    .max(16),
+})
+
+export const hookRunsSchema = z.record(
+  pathSchema,
+  z.object({
+    id: idSchema,
+    revision: z.number().int().nonnegative(),
+    worktreePath: pathSchema,
+    status: z.enum(['running', 'succeeded', 'failed', 'cancelled']),
+    step: z.number().int().min(0).max(16),
+    total: z.number().int().min(0).max(16),
+    name: z.string().max(160),
+    output: z.string().max(65_536),
+    error: z.string().max(16_384).optional(),
+    startedAt: z.number(),
+    finishedAt: z.number().optional(),
+  }),
+)
+
 export const preferencesSchema = z.object({
   activeWorktree: pathSchema.nullable(),
   targetBranch: z.string().max(300),
@@ -49,6 +83,7 @@ export const preferencesSchema = z.object({
   rightWidth: z.number().min(260).max(720),
   inspectorTab: z.enum(['changes', 'history', 'files', 'reviews']),
   reviews: reviewPreferencesSchema.default({ provider: 'auto', remote: '' }),
+  hooks: hookPreferencesSchema.default({ nodePath: 'node', created: [] }),
   worktreeOrder: z.array(pathSchema).max(10_000).default([]),
   baseCollapsed: z.boolean().default(false),
   onHoldCollapsed: z.boolean().default(true),
