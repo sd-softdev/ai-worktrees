@@ -142,6 +142,7 @@ export interface TerminalTab {
 export interface WorktreePreferences {
   task: string
   status: TaskStatus
+  onHold: boolean
   tabs: TerminalTab[]
   activeTab: string | null
 }
@@ -154,6 +155,8 @@ export interface WorkspacePreferences {
   inspectorTab: InspectorTab
   reviews: ReviewPreferences
   worktreeOrder: string[]
+  baseCollapsed: boolean
+  onHoldCollapsed: boolean
   worktrees: Record<string, WorktreePreferences>
 }
 
@@ -272,10 +275,12 @@ export function defaultPreferences(): WorkspacePreferences {
     inspectorTab: 'changes',
     reviews: { provider: 'auto', remote: '' },
     worktreeOrder: [],
+    baseCollapsed: false,
+    onHoldCollapsed: true,
     worktrees: {},
   }
 }
 
 export function defaultWorktreePreferences(): WorktreePreferences {
-  return { task: '', status: 'todo', tabs: [], activeTab: null }
+  return { task: '', status: 'todo', onHold: false, tabs: [], activeTab: null }
 }

@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, expect, it } from 'vitest'
 import { SettingsStore } from '../src/main/settings'
-import { defaultPreferences } from '../src/shared/types'
+import { defaultPreferences, defaultWorktreePreferences } from '../src/shared/types'
 import { preferencesSchema } from '../src/main/schema'
 
 let directory: string
@@ -52,4 +52,13 @@ it('adds optional review preferences to existing layouts without resetting them'
     ...previous,
     reviews: { provider: 'auto', remote: '' },
   })
+})
+
+it('migrates grouping and collapse settings while keeping existing worktree tasks and layouts', () => {
+  const { baseCollapsed: _base, onHoldCollapsed: _hold, ...previous } = defaultPreferences()
+  const { onHold: _onHold, ...tree } = { ...defaultWorktreePreferences(), task: 'Keep this task' }
+  const migrated = preferencesSchema.parse({ ...previous, worktrees: { '/repo/topic': tree } })
+  expect(migrated.baseCollapsed).toBe(false)
+  expect(migrated.onHoldCollapsed).toBe(true)
+  expect(migrated.worktrees['/repo/topic']).toEqual({ ...tree, onHold: false })
 })

@@ -386,6 +386,32 @@ try {
     'ORDER_SESSION=still-alive',
   )
 
+  await page.getByRole('button', { name: 'Collapse base repository' }).click()
+  await expect(page.locator('.base-summary')).toContainText('main')
+  await expect(page.locator('.base-repository .worktree-card')).toBeHidden()
+  const activeGrip = page.getByRole('button', { name: 'Reorder worktree feat/auth-ui' })
+  const dragToGroup = async (target) => {
+    await activeGrip.hover()
+    const bounds = await activeGrip.boundingBox()
+    await page.mouse.down()
+    await page.mouse.move(bounds.x + bounds.width + 8, bounds.y + bounds.height / 2, { steps: 5 })
+    await expect(page.locator('.worktree-drop-target.dragging')).toHaveCount(1)
+    await target.hover()
+    await target.hover()
+    await page.mouse.up()
+  }
+  await dragToGroup(page.locator('.worktree-group-toggle'))
+  await expect(page.locator('.held-worktrees .worktree-name strong')).toHaveText('feat/auth-ui')
+  await expect(page.locator('.active-worktrees .worktree-name strong')).toHaveText('feat/second')
+  await dragToGroup(page.locator('.active-worktrees .sidebar-heading'))
+  await expect(page.locator('.held-worktrees .worktree-card')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Hold worktree feat/auth-ui', exact: true }).click()
+  await expect(page.locator('.held-worktrees .worktree-name strong')).toHaveText('feat/auth-ui')
+  await terminalCommand(probe('session', 'FEATURE_SESSION', 'HELD_SESSION'))
+  await expect(page.locator('.terminal-workspace:visible .xterm-rows')).toContainText(
+    'HELD_SESSION=still-alive',
+  )
+
   await page.getByRole('button', { name: 'Split terminal side by side' }).click()
   await expect(page.locator('.terminal-workspace:visible .terminal-pane')).toHaveCount(2)
   await expect(page.locator('.terminal-workspace:visible .terminal-process.running')).toHaveCount(2)
@@ -411,11 +437,7 @@ try {
     page.locator('.terminal-workspace:visible .terminal-pane').nth(1).locator('.xterm-rows'),
   ).toContainText('SHELL_RESTART_READY')
 
-  await page
-    .locator('.worktree-card')
-    .filter({ has: page.locator('.worktree-name strong', { hasText: /^main$/ }) })
-    .locator('.worktree-select')
-    .click()
+  await page.locator('.base-summary').click()
   await terminalCommand(probe('session', 'WORKTREE_SESSION', 'SESSION'))
   await expect(page.locator('.terminal-workspace:visible .xterm-rows')).toContainText(
     'SESSION=main-alive',
@@ -465,12 +487,17 @@ try {
     .toBeLessThan(width)
 
   // Quit deliberately, then verify saved layout and fresh shells after restart.
+  await page.locator('.worktree-group-toggle').click()
   await app.evaluate(({ dialog }) => {
     dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false })
   })
   await app.close()
   app = null
   await launch()
+  await expect(page.getByRole('button', { name: 'Expand base repository' })).toBeVisible()
+  await expect(page.locator('.worktree-group-toggle')).toHaveAttribute('aria-expanded', 'false')
+  await page.locator('.worktree-group-toggle').click()
+  await expect(page.locator('.held-worktrees .worktree-name strong')).toHaveText('feat/auth-ui')
   await expect(page.locator('.worktree-list .worktree-name strong')).toHaveText([
     'feat/second',
     'feat/auth-ui',
@@ -524,7 +551,7 @@ try {
   expect(git('show', 'feat/auth-ui:src/auth.ts')).toContain('login = true')
   expect(errors).toEqual([])
   console.log(
-    'Desktop smoke test passed: PTY, full-screen TUI, flow control, nested splits, shell restart, worktree isolation, drag-and-drop order, fetch/push, session continuity, Git views, persistence and safe removal.',
+    'Desktop smoke test passed: PTY, full-screen TUI, flow control, nested splits, shell restart, worktree isolation, drag-and-drop order and On hold, collapsed base, fetch/push, session continuity, Git views, persistence and safe removal.',
   )
 } catch (error) {
   if (page && !page.isClosed())

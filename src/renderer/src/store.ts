@@ -35,6 +35,7 @@ interface AppState {
   updateWorktree(path: string, value: Partial<WorktreePreferences>): void
   selectWorktree(path: string): void
   moveWorktree(path: string, target: string, placement: 'before' | 'after'): void
+  holdWorktree(path: string, onHold: boolean): void
   addTerminal(path: string): void
   splitTerminal(path: string, id: string, direction: 'horizontal' | 'vertical'): void
   closeTerminal(path: string, id: string): Promise<void>
@@ -147,7 +148,30 @@ export const useApp = create<AppState>((set, get) => ({
     if (!order.includes(path) || !order.includes(target)) return
     order.splice(order.indexOf(path), 1)
     order.splice(order.indexOf(target) + (placement === 'after' ? 1 : 0), 0, path)
-    get().updatePreferences({ worktreeOrder: order })
+    const onHold = preferences.worktrees[target]?.onHold ?? false
+    get().updatePreferences({
+      worktreeOrder: order,
+      onHoldCollapsed: onHold ? false : preferences.onHoldCollapsed,
+      worktrees: {
+        ...preferences.worktrees,
+        [path]: { ...defaultWorktreePreferences(), ...preferences.worktrees[path], onHold },
+      },
+    })
+  },
+  holdWorktree: (path, onHold) => {
+    const { workspace, preferences } = get()
+    if (!workspace?.worktrees.some((tree) => tree.path === path && !tree.isMain)) return
+    const order = orderedWorktrees(workspace.worktrees, preferences.worktreeOrder)
+      .map((tree) => tree.path)
+      .filter((item) => item !== path)
+    get().updatePreferences({
+      worktreeOrder: [...order, path],
+      onHoldCollapsed: onHold ? false : preferences.onHoldCollapsed,
+      worktrees: {
+        ...preferences.worktrees,
+        [path]: { ...defaultWorktreePreferences(), ...preferences.worktrees[path], onHold },
+      },
+    })
   },
   addTerminal: (path) => {
     const preferences = get().preferences.worktrees[path] ?? defaultWorktreePreferences()

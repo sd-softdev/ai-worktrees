@@ -354,7 +354,7 @@ svg {
   font-weight: 500;
 }
 .new-worktree {
-  margin: 0 13px 10px;
+  margin: 10px 13px;
   min-height: 32px;
   padding: 7px 10px;
 }
@@ -363,6 +363,48 @@ svg {
   min-height: 0;
   flex: 1;
   padding: 0 10px 15px;
+}
+.worktree-group {
+  border-radius: 7px;
+  padding: 2px;
+}
+.worktree-group.group-drop {
+  outline: 2px solid var(--purple);
+  background: #a475ff12;
+}
+.worktree-group .sidebar-heading {
+  padding: 6px 3px 10px;
+}
+.held-worktrees {
+  margin-top: 12px;
+  border-top: 1px solid var(--border-strong);
+}
+.worktree-group-toggle,
+.base-summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 10px 4px;
+  text-align: left;
+}
+.worktree-group-toggle {
+  color: var(--muted);
+  font-weight: 600;
+}
+.base-summary strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.base-summary span {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.base-summary[aria-current='true'] {
+  color: #a9c9f3;
 }
 .worktree-card {
   position: relative;
@@ -491,6 +533,7 @@ svg {
 }
 .worktree-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 3px;
   padding: 0 7px 7px;

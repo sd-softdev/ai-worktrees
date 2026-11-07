@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useState, type DragEvent, type FormEvent, type ReactNode } from 'react'
 import {
   Check,
   FolderGit2,
@@ -13,6 +13,10 @@ import {
   Upload,
   GripVertical,
   LoaderCircle,
+  ChevronDown,
+  ChevronRight,
+  Pause,
+  Play,
 } from 'lucide-react'
 import { leaves } from '../../../shared/layout'
 import { orderedWorktrees } from '../../../shared/worktree-order'
@@ -39,11 +43,15 @@ export function WorktreeSidebar() {
   const [busy, setBusy] = useState(false)
   const [dragging, setDragging] = useState<string | null>(null)
   const [drop, setDrop] = useState<{ path: string; placement: 'before' | 'after' } | null>(null)
+  const [dropGroup, setDropGroup] = useState<boolean | null>(null)
   const base = workspace.worktrees.find((item) => item.isMain)
   const worktrees = orderedWorktrees(workspace.worktrees, preferences.worktreeOrder)
+  const activeTrees = worktrees.filter((tree) => !preferences.worktrees[tree.path]?.onHold)
+  const heldTrees = worktrees.filter((tree) => preferences.worktrees[tree.path]?.onHold)
   const stopDragging = () => {
     setDragging(null)
     setDrop(null)
+    setDropGroup(null)
   }
   const requestRemoval = (worktree: Worktree) => {
     setRemoveError(null)
@@ -64,6 +72,88 @@ export function WorktreeSidebar() {
       setBusy(false)
     }
   }
+
+  const groupDragOver = (event: DragEvent, onHold: boolean) => {
+    if (!dragging) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    setDrop(null)
+    setDropGroup(onHold)
+  }
+  const groupDrop = (event: DragEvent, onHold: boolean) => {
+    event.preventDefault()
+    if (dragging && event.dataTransfer.getData('text/plain') === dragging)
+      useApp.getState().holdWorktree(dragging, onHold)
+    stopDragging()
+  }
+  const renderTrees = (trees: Worktree[]) =>
+    trees.map((worktree, index) => (
+      <div
+        key={worktree.path}
+        className={`worktree-drop-target ${dragging === worktree.path ? 'dragging' : ''} ${drop?.path === worktree.path ? `drop-${drop.placement}` : ''}`}
+        onDragOver={(event) => {
+          event.stopPropagation()
+          if (!dragging || dragging === worktree.path) return
+          event.preventDefault()
+          setDropGroup(null)
+          event.dataTransfer.dropEffect = 'move'
+          const rect = event.currentTarget.getBoundingClientRect()
+          setDrop({
+            path: worktree.path,
+            placement: event.clientY < rect.top + rect.height / 2 ? 'before' : 'after',
+          })
+        }}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDrop(null)
+        }}
+        onDrop={(event) => {
+          event.stopPropagation()
+          event.preventDefault()
+          if (
+            dragging &&
+            drop?.path === worktree.path &&
+            event.dataTransfer.getData('text/plain') === dragging
+          )
+            useApp.getState().moveWorktree(dragging, worktree.path, drop.placement)
+          stopDragging()
+        }}
+      >
+        <WorktreeCard
+          worktree={worktree}
+          onEdit={setEditing}
+          onRemove={requestRemoval}
+          dragHandle={
+            <button
+              className="worktree-drag-handle"
+              draggable
+              aria-label={`Reorder worktree ${worktree.branch || worktree.path}`}
+              title="Drag to reorder or move between groups. Arrow Up / Arrow Down to reorder."
+              onDragStart={(event) => {
+                event.dataTransfer.effectAllowed = 'move'
+                event.dataTransfer.setData('text/plain', worktree.path)
+                const card = event.currentTarget.closest('.worktree-card')
+                if (card) event.dataTransfer.setDragImage(card, 20, 20)
+                setDragging(worktree.path)
+              }}
+              onDragEnd={stopDragging}
+              onKeyDown={(event) => {
+                if (!['ArrowUp', 'ArrowDown'].includes(event.key)) return
+                event.preventDefault()
+                const previous = event.key === 'ArrowUp'
+                const target = trees[index + (previous ? -1 : 1)]
+                if (target)
+                  useApp
+                    .getState()
+                    .moveWorktree(worktree.path, target.path, previous ? 'before' : 'after')
+              }}
+            >
+              <GripVertical size={14} />
+              Reorder
+            </button>
+          }
+        />
+      </div>
+    ))
 
   return (
     <aside className="worktree-sidebar" aria-label="Worktrees">
@@ -89,92 +179,90 @@ export function WorktreeSidebar() {
         <section className="base-repository" aria-label="Base repository">
           <div className="sidebar-heading">
             <h2>Base repository</h2>
+            <button
+              className="icon-button"
+              aria-expanded={!preferences.baseCollapsed}
+              aria-label={
+                preferences.baseCollapsed ? 'Expand base repository' : 'Collapse base repository'
+              }
+              onClick={() =>
+                useApp.getState().updatePreferences({ baseCollapsed: !preferences.baseCollapsed })
+              }
+            >
+              {preferences.baseCollapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
+            </button>
           </div>
-          <WorktreeCard worktree={base} onEdit={setEditing} onRemove={requestRemoval} />
+          {preferences.baseCollapsed && (
+            <button
+              className="base-summary"
+              onClick={() => useApp.getState().selectWorktree(base.path)}
+              disabled={base.missing}
+              aria-current={preferences.activeWorktree === base.path ? 'true' : undefined}
+            >
+              <GitBranch size={14} />
+              <strong>{base.branch || 'Detached HEAD'}</strong>
+              <span>
+                {base.missing
+                  ? 'Missing'
+                  : base.statusError
+                    ? 'Unknown'
+                    : base.changedFiles
+                      ? `${base.changedFiles} changed`
+                      : 'Clean'}
+              </span>
+            </button>
+          )}
+          <div hidden={preferences.baseCollapsed}>
+            <WorktreeCard worktree={base} onEdit={setEditing} onRemove={requestRemoval} />
+          </div>
         </section>
       )}
-      <div className="sidebar-heading">
-        <h2>
-          Worktrees <span className="count">{worktrees.length}</span>
-        </h2>
-      </div>
       <button className="primary-button new-worktree" onClick={() => setCreating(true)}>
         <Plus size={17} />
         New worktree
       </button>
       <div className="worktree-list">
-        {worktrees.map((worktree, index) => (
-          <div
-            key={worktree.path}
-            className={`worktree-drop-target ${dragging === worktree.path ? 'dragging' : ''} ${drop?.path === worktree.path ? `drop-${drop.placement}` : ''}`}
-            onDragOver={(event) => {
-              if (!dragging || dragging === worktree.path) return
-              event.preventDefault()
-              event.dataTransfer.dropEffect = 'move'
-              const rect = event.currentTarget.getBoundingClientRect()
-              setDrop({
-                path: worktree.path,
-                placement: event.clientY < rect.top + rect.height / 2 ? 'before' : 'after',
-              })
-            }}
-            onDragLeave={(event) => {
-              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDrop(null)
-            }}
-            onDrop={(event) => {
-              event.preventDefault()
-              if (
-                dragging &&
-                drop?.path === worktree.path &&
-                event.dataTransfer.getData('text/plain') === dragging
-              )
-                useApp.getState().moveWorktree(dragging, worktree.path, drop.placement)
-              stopDragging()
-            }}
-          >
-            <WorktreeCard
-              worktree={worktree}
-              onEdit={setEditing}
-              onRemove={requestRemoval}
-              dragHandle={
-                <button
-                  className="worktree-drag-handle"
-                  draggable={worktrees.length > 1}
-                  disabled={worktrees.length < 2}
-                  aria-label={`Reorder worktree ${worktree.branch || worktree.path}`}
-                  title={
-                    worktrees.length > 1
-                      ? 'Drag to reorder, or use Arrow Up / Arrow Down'
-                      : 'Create a second worktree to reorder'
-                  }
-                  onDragStart={(event) => {
-                    event.dataTransfer.effectAllowed = 'move'
-                    event.dataTransfer.setData('text/plain', worktree.path)
-                    const card = event.currentTarget.closest('.worktree-card')
-                    if (card) event.dataTransfer.setDragImage(card, 20, 20)
-                    setDragging(worktree.path)
-                  }}
-                  onDragEnd={stopDragging}
-                  onKeyDown={(event) => {
-                    if (!['ArrowUp', 'ArrowDown'].includes(event.key)) return
-                    event.preventDefault()
-                    const previous = event.key === 'ArrowUp'
-                    const target = worktrees[index + (previous ? -1 : 1)]
-                    if (target)
-                      useApp
-                        .getState()
-                        .moveWorktree(worktree.path, target.path, previous ? 'before' : 'after')
-                  }}
-                >
-                  <GripVertical size={14} />
-                  Reorder
-                </button>
-              }
-            />
+        <section
+          className={`worktree-group active-worktrees ${dropGroup === false ? 'group-drop' : ''}`}
+          aria-label="Active worktrees"
+          onDragOver={(event) => groupDragOver(event, false)}
+          onDrop={(event) => groupDrop(event, false)}
+        >
+          <div className="sidebar-heading">
+            <h2>
+              Worktrees <span className="count">{activeTrees.length}</span>
+            </h2>
           </div>
-        ))}
-        {worktrees.length === 0 && (
-          <p className="worktree-empty">Create a worktree for your next task.</p>
-        )}
+          {renderTrees(activeTrees)}
+          {!activeTrees.length && (
+            <p className="worktree-empty">Create a worktree or drag one here.</p>
+          )}
+        </section>
+        <section
+          className={`worktree-group held-worktrees ${dropGroup === true ? 'group-drop' : ''}`}
+          aria-label="On hold worktrees"
+          onDragOver={(event) => groupDragOver(event, true)}
+          onDrop={(event) => groupDrop(event, true)}
+        >
+          <button
+            className="worktree-group-toggle"
+            aria-expanded={!preferences.onHoldCollapsed}
+            onClick={() =>
+              useApp.getState().updatePreferences({ onHoldCollapsed: !preferences.onHoldCollapsed })
+            }
+          >
+            {preferences.onHoldCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+            On hold <span className="count">{heldTrees.length}</span>
+          </button>
+          <div hidden={preferences.onHoldCollapsed}>
+            {renderTrees(heldTrees)}
+            {!heldTrees.length && (
+              <p className="worktree-empty">
+                Drag worktrees here to set them aside. Shells keep running.
+              </p>
+            )}
+          </div>
+        </section>
       </div>
       <div className="sidebar-footer">
         <span className="dot green" />
@@ -305,6 +393,16 @@ function WorktreeCard({
       </button>
       <div className="worktree-actions">
         {dragHandle}
+        {!worktree.isMain && (
+          <button
+            className="icon-button"
+            title={settings.onHold ? 'Move to active worktrees' : 'Move to On hold'}
+            aria-label={`${settings.onHold ? 'Resume' : 'Hold'} worktree ${worktree.branch || worktree.path}`}
+            onClick={() => useApp.getState().holdWorktree(worktree.path, !settings.onHold)}
+          >
+            {settings.onHold ? <Play size={13} /> : <Pause size={13} />}
+          </button>
+        )}
         <button
           className="worktree-sync"
           disabled={

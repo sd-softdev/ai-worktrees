@@ -50,11 +50,14 @@ export const preferencesSchema = z.object({
   inspectorTab: z.enum(['changes', 'history', 'files', 'reviews']),
   reviews: reviewPreferencesSchema.default({ provider: 'auto', remote: '' }),
   worktreeOrder: z.array(pathSchema).max(10_000).default([]),
+  baseCollapsed: z.boolean().default(false),
+  onHoldCollapsed: z.boolean().default(true),
   worktrees: z.record(
     pathSchema,
     z.object({
       task: z.string().max(500),
       status: z.enum(['todo', 'working', 'review', 'done']),
+      onHold: z.boolean().default(false),
       activeTab: idSchema.nullable(),
       tabs: z
         .array(z.object({ id: idSchema, title: z.string().max(160), layout: layoutSchema }))
