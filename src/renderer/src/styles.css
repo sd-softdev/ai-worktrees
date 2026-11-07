@@ -502,7 +502,8 @@ svg {
 .worktree-edit {
   margin-left: auto;
 }
-.worktree-sync {
+.worktree-sync,
+.worktree-drag-handle {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -511,14 +512,15 @@ svg {
   color: #b9c6dd;
   font-size: 10px;
 }
-.worktree-sync:hover:not(:disabled) {
+.worktree-sync:hover:not(:disabled),
+.worktree-drag-handle:hover:not(:disabled) {
   background: #ffffff0b;
   color: var(--text);
 }
-.worktree-drag-handle {
+.worktree-drag-handle:not(:disabled) {
   cursor: grab;
 }
-.worktree-drag-handle:active {
+.worktree-drag-handle:active:not(:disabled) {
   cursor: grabbing;
 }
 .worktree-drop-target {

@@ -137,10 +137,15 @@ export function WorktreeSidebar() {
               onRemove={requestRemoval}
               dragHandle={
                 <button
-                  className="icon-button worktree-drag-handle"
+                  className="worktree-drag-handle"
                   draggable={worktrees.length > 1}
+                  disabled={worktrees.length < 2}
                   aria-label={`Reorder worktree ${worktree.branch || worktree.path}`}
-                  title="Drag to reorder, or use Arrow Up / Arrow Down"
+                  title={
+                    worktrees.length > 1
+                      ? 'Drag to reorder, or use Arrow Up / Arrow Down'
+                      : 'Create a second worktree to reorder'
+                  }
                   onDragStart={(event) => {
                     event.dataTransfer.effectAllowed = 'move'
                     event.dataTransfer.setData('text/plain', worktree.path)
@@ -161,6 +166,7 @@ export function WorktreeSidebar() {
                   }}
                 >
                   <GripVertical size={14} />
+                  Reorder
                 </button>
               }
             />

@@ -100,7 +100,7 @@ Git status and the file tree refresh silently in the background every five secon
 
 ### Base repository and worktree order
 
-The **Base repository** has its own fixed section above the linked worktrees. Drag a worktree by its grip to reorder it, or focus the grip and press **Arrow Up / Arrow Down**. The order is saved per workspace and survives restarts; newly discovered worktrees are appended. Moving cards preserves active terminals and their sessions.
+The **Base repository** has its own fixed section above the linked worktrees. Drag a worktree by its **Reorder** handle to reorder it, or focus the handle and press **Arrow Up / Arrow Down**. Reordering is available when there are at least two linked worktrees. The order is saved per workspace and survives restarts; newly discovered worktrees are appended. Moving cards preserves active terminals and their sessions.
 
 Click **Fetch** in the base repository to fetch all remotes without merging or changing your checkout. Click **Push** on a worktree to publish its current branch. Push uses `branch.<name>.pushRemote`, then `remote.pushDefault`, then the upstream remote, falling back to `origin` or a single configured remote. The first push sets an upstream; existing upstream tracking is preserved when pushing to a fork. A push to the upstream remote respects its target branch name. Only the selected branch is pushed, without forcing updates.
 
